@@ -3,12 +3,6 @@ import os
 from contextlib import contextmanager
 from config import Config
 
-# ========== СОЗДАЁМ ПАПКУ ДЛЯ БД ==========
-DB_DIR = os.path.dirname(Config.DATABASE_PATH)
-if not os.path.exists(DB_DIR):
-    os.makedirs(DB_DIR, exist_ok=True)
-    print(f"✅ Создана папка: {DB_DIR}")
-
 DATABASE_PATH = Config.DATABASE_PATH
 
 @contextmanager
