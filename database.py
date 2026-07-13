@@ -62,7 +62,7 @@ def init_db():
                 )
             ''')
             
-            # Расписание
+            # Расписание (ДОБАВЛЕНЫ НОВЫЕ ПОЛЯ)
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS schedule (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -70,9 +70,31 @@ def init_db():
                     time TEXT NOT NULL,
                     days TEXT DEFAULT 'Ежедневно',
                     is_active BOOLEAN DEFAULT 1,
+                    start_time TEXT DEFAULT '10:00',
+                    end_time TEXT DEFAULT '22:00',
+                    interval_minutes INTEGER DEFAULT 30,
+                    days_of_week TEXT DEFAULT 'all',
                     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
                 )
             ''')
+            
+            # Добавляем новые колонки, если их нет (для существующей БД)
+            try:
+                cursor.execute("ALTER TABLE schedule ADD COLUMN start_time TEXT DEFAULT '10:00'")
+            except:
+                pass
+            try:
+                cursor.execute("ALTER TABLE schedule ADD COLUMN end_time TEXT DEFAULT '22:00'")
+            except:
+                pass
+            try:
+                cursor.execute("ALTER TABLE schedule ADD COLUMN interval_minutes INTEGER DEFAULT 30")
+            except:
+                pass
+            try:
+                cursor.execute("ALTER TABLE schedule ADD COLUMN days_of_week TEXT DEFAULT 'all'")
+            except:
+                pass
             
             # История постов
             cursor.execute('''
@@ -146,10 +168,11 @@ def get_user_schedule(user_id):
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute('''
-            SELECT time, days FROM schedule 
+            SELECT id, time, days, start_time, end_time, interval_minutes, days_of_week 
+            FROM schedule 
             WHERE user_id = ? AND is_active = 1
         ''', (user_id,))
-        return [{'time': row['time'], 'days': row['days']} for row in cursor.fetchall()]
+        return cursor.fetchall()
 
 def get_vk_settings(user_id):
     with get_db() as conn:
@@ -170,3 +193,27 @@ def deduct_post_cost(user_id):
             conn.commit()
             return True
         return False
+
+def add_schedule(user_id, start_time, end_time, interval_minutes, days_of_week, days):
+    """Добавление расписания с генерацией всех времён"""
+    from datetime import datetime, timedelta
+    
+    start_dt = datetime.strptime(start_time, '%H:%M')
+    end_dt = datetime.strptime(end_time, '%H:%M')
+    
+    times = []
+    current = start_dt
+    while current <= end_dt:
+        times.append(current.strftime('%H:%M'))
+        current += timedelta(minutes=interval_minutes)
+    
+    with get_db() as conn:
+        cursor = conn.cursor()
+        for time in times:
+            cursor.execute('''
+                INSERT INTO schedule (user_id, time, days, start_time, end_time, interval_minutes, days_of_week)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            ''', (user_id, time, days, start_time, end_time, interval_minutes, days_of_week))
+        conn.commit()
+    
+    return len(times)
