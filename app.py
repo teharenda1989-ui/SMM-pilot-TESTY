@@ -45,7 +45,11 @@ def admin_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
-# ==================== РОУТЫ ====================
+# ==================== HEALTH CHECK ====================
+
+@app.route('/health')
+def health():
+    return {"status": "ok", "message": "SMM Пилот работает"}, 200
 
 @app.route('/')
 def index():
@@ -513,4 +517,4 @@ def admin_toggle_user(user_id):
 # ==================== ЗАПУСК ====================
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(host='0.0.0.0', port=8000, debug=False)
