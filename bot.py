@@ -106,102 +106,106 @@ def process_user(user_id):
         if not schedule:
             return
         
-        scheduled_times = [item['time'] for item in schedule]
-        if current_time not in scheduled_times:
-            return
-        
+        # Проверяем дни недели
         weekdays = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
         today = weekdays[now.weekday()]
-        days_allowed = False
+        
+        days_map = {
+            'all': ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'],
+            'weekdays': ['Пн', 'Вт', 'Ср', 'Чт', 'Пт'],
+            'weekend': ['Сб', 'Вс'],
+            'monday': ['Пн'],
+            'tuesday': ['Вт'],
+            'wednesday': ['Ср'],
+            'thursday': ['Чт'],
+            'friday': ['Пт'],
+            'saturday': ['Сб'],
+            'sunday': ['Вс']
+        }
         
         for item in schedule:
-            if item['time'] == current_time:
-                if item['days'] == 'Ежедневно':
-                    days_allowed = True
-                elif item['days'] == 'Пн-Пт' and today in ['Пн', 'Вт', 'Ср', 'Чт', 'Пт']:
-                    days_allowed = True
-                elif item['days'] == 'Сб-Вс' and today in ['Сб', 'Вс']:
-                    days_allowed = True
-                elif item['days'] == today:
-                    days_allowed = True
-                break
-        
-        if not days_allowed:
-            return
-        
-        # Выбираем тему
-        if current_time == "10:00":
-            morning_topics = get_user_topics(user_id, is_morning=True)
-            if morning_topics:
-                topic = random.choice(morning_topics)
-                style = 'информативный'
-            else:
-                topics = get_user_topics(user_id)
-                if not topics:
-                    return
-                topic = random.choice(topics)
-                style = random.choice(['информативный', 'юмористический', 'вовлекающий'])
-        else:
+            # Проверяем конкретное время
+            if item['time'] != current_time:
+                continue
+            
+            # Проверяем дни недели
+            days_of_week = item.get('days_of_week', 'all')
+            allowed_days = days_map.get(days_of_week, ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'])
+            if today not in allowed_days:
+                continue
+            
+            # Проверяем диапазон времени (если есть)
+            start_time = item.get('start_time', '10:00')
+            end_time = item.get('end_time', '22:00')
+            if current_time < start_time or current_time > end_time:
+                continue
+            
+            # ВСЕ ПРОВЕРКИ ПРОЙДЕНЫ → ПУБЛИКУЕМ
+            
+            # Выбираем тему
             topics = get_user_topics(user_id)
             if not topics:
                 return
+            
             topic = random.choice(topics)
             style = random.choice(['информативный', 'юмористический', 'вовлекающий'])
-        
-        text = generate_text(topic, style)
-        
-        if text.startswith("❌"):
-            with get_db() as conn:
-                cursor = conn.cursor()
-                cursor.execute('''
-                    INSERT INTO posts_history (user_id, topic, text, status, error)
-                    VALUES (?, ?, ?, ?, ?)
-                ''', (user_id, topic, text[:500], 'failed', text))
-                conn.commit()
-            return
-        
-        try:
-            post_id = publish_post(
-                vk_settings['vk_token'],
-                vk_settings['group_id'],
-                text
-            )
             
-            if deduct_post_cost(user_id):
-                status = 'published'
-                cost = POST_PRICE
-                error = None
-            else:
-                status = 'insufficient_balance'
-                cost = 0
-                error = 'Недостаточно средств'
+            text = generate_text(topic, style)
             
-            with get_db() as conn:
-                cursor = conn.cursor()
-                cursor.execute('''
-                    INSERT INTO posts_history (user_id, topic, text, status, cost, error, post_id)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                ''', (user_id, topic, text[:500], status, cost, error, post_id))
-                conn.commit()
+            if text.startswith("❌"):
+                with get_db() as conn:
+                    cursor = conn.cursor()
+                    cursor.execute('''
+                        INSERT INTO posts_history (user_id, topic, text, status, error)
+                        VALUES (?, ?, ?, ?, ?)
+                    ''', (user_id, topic, text[:500], 'failed', text))
+                    conn.commit()
+                return
             
-            print(f"✅ Пользователь {user_id}: Пост опубликован!")
+            try:
+                post_id = publish_post(
+                    vk_settings['vk_token'],
+                    vk_settings['group_id'],
+                    text
+                )
+                
+                if deduct_post_cost(user_id):
+                    status = 'published'
+                    cost = POST_PRICE
+                    error = None
+                else:
+                    status = 'insufficient_balance'
+                    cost = 0
+                    error = 'Недостаточно средств'
+                
+                with get_db() as conn:
+                    cursor = conn.cursor()
+                    cursor.execute('''
+                        INSERT INTO posts_history (user_id, topic, text, status, cost, error, post_id)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                    ''', (user_id, topic, text[:500], status, cost, error, post_id))
+                    conn.commit()
+                
+                print(f"✅ Пользователь {user_id}: Пост опубликован в {current_time}!")
+                
+            except Exception as e:
+                with get_db() as conn:
+                    cursor = conn.cursor()
+                    cursor.execute('''
+                        INSERT INTO posts_history (user_id, topic, text, status, error)
+                        VALUES (?, ?, ?, ?, ?)
+                    ''', (user_id, topic, text[:500], 'failed', str(e)))
+                    conn.commit()
+                print(f"❌ Пользователь {user_id}: Ошибка - {e}")
             
-        except Exception as e:
-            with get_db() as conn:
-                cursor = conn.cursor()
-                cursor.execute('''
-                    INSERT INTO posts_history (user_id, topic, text, status, error)
-                    VALUES (?, ?, ?, ?, ?)
-                ''', (user_id, topic, text[:500], 'failed', str(e)))
-                conn.commit()
-            print(f"❌ Пользователь {user_id}: Ошибка - {e}")
+            break  # Выходим после первой публикации
             
     except Exception as e:
         print(f"⚠️ Ошибка обработки пользователя {user_id}: {e}")
 
 def bot_loop():
     print("=" * 60)
-    print("🤖 SMM Пилот Бот запущен!")
+    print("🤖 SMM Пилот Бот запущен (гибкое расписание)!")
     print("=" * 60)
     print(f"💲 Стоимость поста: {POST_PRICE} ₽")
     print("=" * 60)
