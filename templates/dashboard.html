@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+
+{% block title %}Личный кабинет — SMM Пилот{% endblock %}
+
+{% block content %}
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 12px;">
+    <h1 style="font-size: 28px;">📊 Личный кабинет</h1>
+    <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+        <span style="color: var(--text-secondary);">👤 {{ session.get('email', '') }}</span>
+        <div class="balance-display">
+            <span>💰 Баланс:</span>
+            <span class="balance-amount">{{ "%.2f"|format(user.balance) }} ₽</span>
+        </div>
+        <a href="{{ url_for('balance') }}" class="btn btn-success">Пополнить</a>
+    </div>
+</div>
+
+<div class="grid">
+    <div class="metric">
+        <div class="metric-value">{{ total_posts }}</div>
+        <div class="metric-label">📝 Всего постов</div>
+    </div>
+    <div class="metric">
+        <div class="metric-value">{{ today_posts }}</div>
+        <div class="metric-label">📊 Сегодня</div>
+    </div>
+    <div class="metric">
+        <div class="metric-value">{{ total_topics }}</div>
+        <div class="metric-label">📚 Тем в базе</div>
+    </div>
+    <div class="metric">
+        <div class="metric-value">{{ total_schedule }}</div>
+        <div class="metric-label">⏰ Публикаций в день</div>
+    </div>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin: 24px 0;">
+    <a href="{{ url_for('settings') }}" class="btn btn-primary" style="text-align: center;">⚙️ Настройки VK</a>
+    <a href="{{ url_for('topics') }}" class="btn btn-primary" style="text-align: center;">📝 Управление темами</a>
+    <a href="{{ url_for('schedule') }}" class="btn btn-primary" style="text-align: center;">⏰ Расписание</a>
+    <a href="{{ url_for('history') }}" class="btn btn-primary" style="text-align: center;">📜 История</a>
+</div>
+
+<div class="card" style="margin-bottom: 24px;">
+    <h3>🤖 Статус бота</h3>
+    {% if vk_settings and vk_settings.is_configured %}
+        <p style="color: var(--success);">✅ ВК настроен и активен</p>
+        <p style="color: var(--text-secondary);">Группа ID: {{ vk_settings.group_id }}</p>
+    {% else %}
+        <p style="color: var(--warning);">⚠️ ВК не настроен</p>
+        <a href="{{ url_for('settings') }}" class="btn btn-primary" style="margin-top: 12px;">Настроить сейчас</a>
+    {% endif %}
+</div>
+
+<h3 style="margin-bottom: 12px;">📜 Последние посты</h3>
+<div class="table-wrapper">
+    <table>
+        <thead>
+            <tr>
+                <th>Дата</th>
+                <th>Тема</th>
+                <th>Статус</th>
+                <th>Стоимость</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for post in recent_posts %}
+                <tr>
+                    <td>{{ post.published_at[:16] if post.published_at else '-' }}</td>
+                    <td>{{ post.topic[:50] }}{% if post.topic and post.topic|length > 50 %}...{% endif %}</td>
+                    <td>
+                        {% if post.status == 'published' %}
+                            <span style="color: var(--success);">✅ Опубликован</span>
+                        {% elif post.status == 'failed' %}
+                            <span style="color: var(--danger);">❌ Ошибка</span>
+                        {% else %}
+                            <span style="color: var(--warning);">⚠️ {{ post.status }}</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ "%.2f"|format(post.cost) }} ₽</td>
+                </tr>
+            {% else %}
+                <tr>
+                    <td colspan="4" style="text-align: center; color: var(--text-secondary);">
+                        Нет опубликованных постов
+                    </td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

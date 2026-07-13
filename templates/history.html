@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+
+{% block title %}История — SMM Пилот{% endblock %}
+
+{% block content %}
+<h1 style="font-size: 28px; margin-bottom: 24px;">📜 История публикаций</h1>
+
+<div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 12px;">
+        <span style="color: var(--text-secondary);">Всего: {{ history|length }} постов</span>
+        <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+            <span style="color: var(--text-secondary);">
+                💰 Потрачено: {{ "%.2f"|format(total_cost) }} ₽
+            </span>
+            <form method="POST" action="{{ url_for('clear_history') }}" style="display: inline;" 
+                  onsubmit="return confirm('Очистить всю историю?')">
+                <button type="submit" class="btn btn-danger" style="padding: 4px 16px; font-size: 12px;">
+                    🗑️ Очистить
+                </button>
+            </form>
+        </div>
+    </div>
+    
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>Дата</th>
+                    <th>Тема</th>
+                    <th>Статус</th>
+                    <th>Стоимость</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for post in history %}
+                    <tr>
+                        <td style="white-space: nowrap; font-size: 13px;">
+                            {{ post.published_at[:16] if post.published_at else '-' }}
+                        </td>
+                        <td>{{ post.topic[:50] }}{% if post.topic and post.topic|length > 50 %}...{% endif %}</td>
+                        <td>
+                            {% if post.status == 'published' %}
+                                <span style="color: var(--success);">✅ Опубликован</span>
+                            {% elif post.status == 'failed' %}
+                                <span style="color: var(--danger);">❌ Ошибка</span>
+                            {% elif post.status == 'insufficient_balance' %}
+                                <span style="color: var(--warning);">⚠️ Недостаточно средств</span>
+                            {% else %}
+                                <span style="color: var(--warning);">⚠️ {{ post.status }}</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ "%.2f"|format(post.cost) }} ₽</td>
+                    </tr>
+                {% else %}
+                    <tr>
+                        <td colspan="4" style="text-align: center; color: var(--text-secondary); padding: 40px;">
+                            История публикаций пуста
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

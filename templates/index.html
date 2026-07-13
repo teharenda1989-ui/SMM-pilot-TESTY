@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+
+{% block title %}SMM Пилот — Автоматический постинг для бизнеса{% endblock %}
+
+{% block content %}
+<div class="hero">
+    <h1>🚀 Автоматический SMM<br>без специалистов</h1>
+    <p>
+        Искусственный интеллект создаёт и публикует посты в VK<br>
+        по вашим темам. Просто настройте и забудьте.
+    </p>
+    
+    {% if not session.get('user_id') %}
+        <div style="display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;">
+            <a href="{{ url_for('register') }}" class="btn btn-primary" style="font-size: 18px; padding: 14px 40px;">
+                Начать бесплатно 🎯
+            </a>
+            <a href="#features" class="btn btn-outline" style="font-size: 18px; padding: 14px 40px;">
+                Узнать больше
+            </a>
+        </div>
+    {% else %}
+        <a href="{{ url_for('dashboard') }}" class="btn btn-primary" style="font-size: 18px; padding: 14px 40px;">
+            Перейти в кабинет 📊
+        </a>
+    {% endif %}
+</div>
+
+<section id="features" style="padding: 40px 0;">
+    <h2 style="text-align: center; font-size: 32px; margin-bottom: 40px;">Почему SMM Пилот?</h2>
+    
+    <div class="grid">
+        <div class="card">
+            <div style="font-size: 40px; margin-bottom: 12px;">🤖</div>
+            <h3>Искусственный интеллект</h3>
+            <p style="color: var(--text-secondary);">Yandex GPT создаёт уникальные посты по вашим темам.</p>
+        </div>
+        
+        <div class="card">
+            <div style="font-size: 40px; margin-bottom: 12px;">⏰</div>
+            <h3>Полная автоматизация</h3>
+            <p style="color: var(--text-secondary);">Публикация по расписанию. Бот работает за вас.</p>
+        </div>
+        
+        <div class="card">
+            <div style="font-size: 40px; margin-bottom: 12px;">💰</div>
+            <h3>Доступная цена</h3>
+            <p style="color: var(--text-secondary);">Всего {{ "%.2f"|format(post_price) }} ₽ за пост. Дешевле SMM-специалиста.</p>
+        </div>
+        
+        <div class="card">
+            <div style="font-size: 40px; margin-bottom: 12px;">🎯</div>
+            <h3>Гибкие настройки</h3>
+            <p style="color: var(--text-secondary);">Добавляйте свои темы, меняйте расписание.</p>
+        </div>
+        
+        <div class="card">
+            <div style="font-size: 40px; margin-bottom: 12px;">📊</div>
+            <h3>Статистика</h3>
+            <p style="color: var(--text-secondary);">Отслеживайте все публикации и баланс.</p>
+        </div>
+        
+        <div class="card">
+            <div style="font-size: 40px; margin-bottom: 12px;">🔒</div>
+            <h3>Безопасность</h3>
+            <p style="color: var(--text-secondary);">Ваши данные защищены. Токены в зашифрованном виде.</p>
+        </div>
+    </div>
+</section>
+
+<section style="padding: 40px 0;">
+    <h2 style="text-align: center; font-size: 32px; margin-bottom: 40px;">Как начать?</h2>
+    
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 30px; text-align: center;">
+        <div>
+            <div style="font-size: 48px; margin-bottom: 12px;">1️⃣</div>
+            <h3>Регистрация</h3>
+            <p style="color: var(--text-secondary);">Создайте аккаунт за 2 минуты</p>
+        </div>
+        
+        <div>
+            <div style="font-size: 48px; margin-bottom: 12px;">2️⃣</div>
+            <h3>Настройка</h3>
+            <p style="color: var(--text-secondary);">Подключите VK, добавьте темы</p>
+        </div>
+        
+        <div>
+            <div style="font-size: 48px; margin-bottom: 12px;">3️⃣</div>
+            <h3>Пополнение</h3>
+            <p style="color: var(--text-secondary);">Пополните баланс от 10 ₽</p>
+        </div>
+        
+        <div>
+            <div style="font-size: 48px; margin-bottom: 12px;">4️⃣</div>
+            <h3>Автопилот</h3>
+            <p style="color: var(--text-secondary);">Бот работает и публикует посты</p>
+        </div>
+    </div>
+</section>
+
+<footer style="border-top: 1px solid var(--border-color); padding: 32px 0; margin-top: 40px; text-align: center;">
+    <p style="color: var(--text-secondary);">
+        © 2026 SMM Пилот. Сделано с ❤️ для предпринимателей
+    </p>
+</footer>
+{% endblock %}

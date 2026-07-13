@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+
+{% block title %}Баланс — SMM Пилот{% endblock %}
+
+{% block content %}
+<h1 style="font-size: 28px; margin-bottom: 24px;">💰 Баланс</h1>
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+    <div class="card">
+        <h3>💳 Текущий баланс</h3>
+        <div style="font-size: 48px; font-weight: 700; color: var(--success); margin: 20px 0;">
+            {{ "%.2f"|format(user.balance) }} ₽
+        </div>
+        <p style="color: var(--text-secondary);">
+            Стоимость одного поста: {{ "%.2f"|format(post_price) }} ₽
+        </p>
+        <p style="color: var(--text-secondary);">
+            Доступно постов: <strong>{{ (user.balance / post_price)|int }}</strong>
+        </p>
+    </div>
+    
+    <div class="card">
+        <h3>💳 Пополнить баланс</h3>
+        
+        <form method="POST">
+            <div class="form-group">
+                <label class="form-label">Сумма пополнения (₽)</label>
+                <input type="number" name="amount" class="form-control" 
+                       placeholder="Минимум 10 ₽" step="0.01" min="10" required>
+                <small style="color: var(--text-secondary);">
+                    Минимальная сумма: 10 ₽
+                </small>
+            </div>
+            
+            <button type="submit" class="btn btn-success" style="width: 100%;">
+                💳 Пополнить
+            </button>
+        </form>
+        
+        <div style="margin-top: 16px; padding: 12px; background: var(--bg-tertiary); border-radius: 6px;">
+            <p style="color: var(--text-secondary); font-size: 13px;">
+                🔒 Безопасная оплата через ЮKassa (в разработке)
+            </p>
+            <p style="color: var(--text-secondary); font-size: 13px;">
+                💳 Сейчас доступно тестовое пополнение
+            </p>
+        </div>
+    </div>
+</div>
+
+<h3 style="margin-top: 32px; margin-bottom: 12px;">📜 История платежей</h3>
+<div class="card">
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>Дата</th>
+                    <th>Сумма</th>
+                    <th>Статус</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for payment in payments %}
+                    <tr>
+                        <td>{{ payment.created_at[:16] if payment.created_at else '-' }}</td>
+                        <td>{{ "%.2f"|format(payment.amount) }} ₽</td>
+                        <td>
+                            {% if payment.status == 'success' %}
+                                <span style="color: var(--success);">✅ Успешно</span>
+                            {% elif payment.status == 'pending' %}
+                                <span style="color: var(--warning);">⏳ Ожидает</span>
+                            {% else %}
+                                <span style="color: var(--danger);">❌ {{ payment.status }}</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% else %}
+                    <tr>
+                        <td colspan="3" style="text-align: center; color: var(--text-secondary); padding: 20px;">
+                            Нет платежей
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

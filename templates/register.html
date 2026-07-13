@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+
+{% block title %}Регистрация — SMM Пилот{% endblock %}
+
+{% block content %}
+<div style="max-width: 400px; margin: 60px auto;">
+    <div class="card">
+        <h2 style="text-align: center; margin-bottom: 24px;">🚀 Регистрация</h2>
+        
+        <form method="POST">
+            <div class="form-group">
+                <label class="form-label">Email</label>
+                <input type="email" name="email" class="form-control" placeholder="example@mail.ru" required>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">Пароль</label>
+                <input type="password" name="password" class="form-control" placeholder="Минимум 6 символов" required>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">Подтверждение пароля</label>
+                <input type="password" name="password_confirm" class="form-control" placeholder="Повторите пароль" required>
+            </div>
+            
+            <button type="submit" class="btn btn-primary" style="width: 100%;">Зарегистрироваться</button>
+        </form>
+        
+        <div style="text-align: center; margin-top: 16px; color: var(--text-secondary);">
+            Уже есть аккаунт? <a href="{{ url_for('login') }}" style="color: var(--accent);">Войти</a>
+        </div>
+    </div>
+</div>
+{% endblock %}
