@@ -6,8 +6,9 @@
 <h1 style="font-size: 28px; margin-bottom: 24px;">⏰ Расписание публикаций</h1>
 
 <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 24px;">
+    <!-- Список расписания -->
     <div class="card">
-        <h3>📅 Текущее расписание ({{ schedule|length }})</h3>
+        <h3>📅 Текущее расписание</h3>
         
         <div style="max-height: 500px; overflow-y: auto;">
             {% for item in schedule %}
@@ -19,6 +20,12 @@
                         </span>
                         <span style="color: var(--text-secondary); margin-left: 12px;">
                             {{ item.days }}
+                        </span>
+                        <br>
+                        <span style="font-size: 12px; color: var(--text-secondary);">
+                            ⏰ {{ item.start_time or '10:00' }} → {{ item.end_time or '22:00' }} 
+                            | Интервал: {{ item.interval_minutes or 30 }} мин
+                            | {{ item.days_of_week or 'Ежедневно' }}
                         </span>
                     </div>
                     <form method="POST" action="{{ url_for('delete_schedule', schedule_id=item.id) }}" 
@@ -37,17 +44,52 @@
         </div>
     </div>
     
+    <!-- Добавление расписания -->
     <div class="card">
-        <h3>➕ Добавить время</h3>
+        <h3>➕ Добавить расписание</h3>
         
-        <form method="POST">
+        <form method="POST" action="{{ url_for('schedule') }}">
             <div class="form-group">
-                <label class="form-label">Время (HH:MM)</label>
-                <input type="time" name="time" class="form-control" value="12:00" required>
+                <label class="form-label">⏰ Время начала</label>
+                <input type="time" name="start_time" class="form-control" value="10:00" required>
             </div>
             
             <div class="form-group">
-                <label class="form-label">Дни</label>
+                <label class="form-label">⏰ Время окончания</label>
+                <input type="time" name="end_time" class="form-control" value="22:00" required>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">📏 Интервал (минуты)</label>
+                <select name="interval_minutes" class="form-control">
+                    <option value="15">Каждые 15 минут</option>
+                    <option value="30" selected>Каждые 30 минут</option>
+                    <option value="45">Каждые 45 минут</option>
+                    <option value="60">Каждый час</option>
+                    <option value="120">Каждые 2 часа</option>
+                    <option value="180">Каждые 3 часа</option>
+                    <option value="240">Каждые 4 часа</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">📅 Дни недели</label>
+                <select name="days_of_week" class="form-control">
+                    <option value="all">Ежедневно</option>
+                    <option value="weekdays">Пн-Пт (будни)</option>
+                    <option value="weekend">Сб-Вс (выходные)</option>
+                    <option value="monday">Понедельник</option>
+                    <option value="tuesday">Вторник</option>
+                    <option value="wednesday">Среда</option>
+                    <option value="thursday">Четверг</option>
+                    <option value="friday">Пятница</option>
+                    <option value="saturday">Суббота</option>
+                    <option value="sunday">Воскресенье</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">📝 Дополнительно</label>
                 <select name="days" class="form-control">
                     <option value="Ежедневно">Ежедневно</option>
                     <option value="Пн-Пт">Пн-Пт</option>
@@ -62,18 +104,16 @@
                 </select>
             </div>
             
-            <button type="submit" class="btn btn-primary" style="width: 100%;">➕ Добавить</button>
+            <button type="submit" class="btn btn-primary" style="width: 100%;">➕ Добавить расписание</button>
         </form>
         
         <div style="margin-top: 16px; padding: 12px; background: var(--bg-tertiary); border-radius: 6px;">
             <p style="color: var(--text-secondary); font-size: 13px;">
-                💡 По умолчанию: каждые 30 минут с 10:00 до 22:00
+                💡 Пример: с 10:00 до 22:00, каждые 30 минут, ежедневно
             </p>
-            <form method="POST" action="{{ url_for('reset_schedule') }}" style="display: inline;">
-                <button type="submit" class="btn btn-outline" style="width: 100%; margin-top: 8px;">
-                    ↩️ Восстановить по умолчанию
-                </button>
-            </form>
+            <p style="color: var(--text-secondary); font-size: 13px;">
+                💡 Можно выбрать только будни или выходные
+            </p>
         </div>
     </div>
 </div>
