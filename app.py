@@ -56,6 +56,8 @@ def admin_required(f):
 def health():
     return {"status": "ok", "message": "SMM Пилот работает"}, 200
 
+# ==================== ОСНОВНЫЕ РОУТЫ ====================
+
 @app.route('/')
 def index():
     return render_template('index.html', 
@@ -338,7 +340,7 @@ def delete_topic(topic_id):
     flash('Тема удалена', 'info')
     return redirect(request.referrer or url_for('topics'))
 
-# ==================== НОВЫЙ МАРШРУТ /schedule ====================
+# ==================== РАСПИСАНИЕ ====================
 
 @app.route('/schedule', methods=['GET', 'POST'])
 @login_required
@@ -353,7 +355,6 @@ def schedule():
             days_of_week = request.form.get('days_of_week', 'all')
             days = request.form.get('days', 'Ежедневно')
             
-            # Генерируем все времена
             from datetime import datetime, timedelta
             
             start_dt = datetime.strptime(start_time, '%H:%M')
@@ -365,7 +366,6 @@ def schedule():
                 times.append(current.strftime('%H:%M'))
                 current += timedelta(minutes=interval_minutes)
             
-            # Сохраняем каждое время
             for time in times:
                 cursor.execute('''
                     INSERT INTO schedule (user_id, time, days, start_time, end_time, interval_minutes, days_of_week)
