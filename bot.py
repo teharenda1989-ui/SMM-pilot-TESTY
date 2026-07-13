@@ -101,7 +101,6 @@ def process_user(user_id):
         
         now = get_novosibirsk_time()
         current_time = now.strftime("%H:%M")
-        current_hour = now.hour
         
         schedule = get_user_schedule(user_id)
         if not schedule:
@@ -130,6 +129,7 @@ def process_user(user_id):
         if not days_allowed:
             return
         
+        # Выбираем тему
         if current_time == "10:00":
             morning_topics = get_user_topics(user_id, is_morning=True)
             if morning_topics:
@@ -247,6 +247,7 @@ def start_bot():
     global _bot_started
     if not _bot_started:
         _bot_started = True
+        print("🔄 Запуск бота в фоновом потоке...")
         bot_thread = threading.Thread(target=bot_loop, daemon=True)
         bot_thread.start()
         print("✅ Бот запущен в фоновом режиме")
