@@ -1,6 +1,13 @@
 import sqlite3
+import os
 from contextlib import contextmanager
 from config import Config
+
+# ========== СОЗДАЁМ ПАПКУ ДЛЯ БД ==========
+DB_DIR = os.path.dirname(Config.DATABASE_PATH)
+if not os.path.exists(DB_DIR):
+    os.makedirs(DB_DIR, exist_ok=True)
+    print(f"✅ Создана папка: {DB_DIR}")
 
 DATABASE_PATH = Config.DATABASE_PATH
 
@@ -15,114 +22,122 @@ def get_db():
 
 def init_db():
     """Создание всех таблиц"""
-    with get_db() as conn:
-        cursor = conn.cursor()
-        
-        # Пользователи
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS users (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                email TEXT UNIQUE NOT NULL,
-                password_hash TEXT NOT NULL,
-                balance REAL DEFAULT 0,
-                role TEXT DEFAULT 'user',
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                is_active BOOLEAN DEFAULT 1,
-                last_login TIMESTAMP
-            )
-        ''')
-        
-        # Настройки ВК
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS vk_settings (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER UNIQUE NOT NULL,
-                vk_token TEXT,
-                group_id TEXT,
-                is_configured BOOLEAN DEFAULT 0,
-                is_active BOOLEAN DEFAULT 1,
-                last_post_time TIMESTAMP,
-                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-            )
-        ''')
-        
-        # Темы
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS topics (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER NOT NULL,
-                topic TEXT NOT NULL,
-                is_morning BOOLEAN DEFAULT 0,
-                is_active BOOLEAN DEFAULT 1,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-            )
-        ''')
-        
-        # Расписание
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS schedule (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER NOT NULL,
-                time TEXT NOT NULL,
-                days TEXT DEFAULT 'Ежедневно',
-                is_active BOOLEAN DEFAULT 1,
-                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-            )
-        ''')
-        
-        # История постов
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS posts_history (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER NOT NULL,
-                topic TEXT,
-                text TEXT,
-                status TEXT,
-                cost REAL DEFAULT 0.50,
-                error TEXT,
-                post_id TEXT,
-                published_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-            )
-        ''')
-        
-        # Платежи
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS payments (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER NOT NULL,
-                amount REAL NOT NULL,
-                status TEXT DEFAULT 'pending',
-                payment_id TEXT,
-                payment_url TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                completed_at TIMESTAMP,
-                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-            )
-        ''')
-        
-        # Индексы
-        cursor.execute('CREATE INDEX IF NOT EXISTS idx_topics_user_id ON topics(user_id)')
-        cursor.execute('CREATE INDEX IF NOT EXISTS idx_schedule_user_id ON schedule(user_id)')
-        cursor.execute('CREATE INDEX IF NOT EXISTS idx_history_user_id ON posts_history(user_id)')
-        cursor.execute('CREATE INDEX IF NOT EXISTS idx_payments_user_id ON payments(user_id)')
-        
-        conn.commit()
-        
-        # Создаём администратора
-        from werkzeug.security import generate_password_hash
-        admin_email = Config.ADMIN_EMAIL
-        admin_pass = Config.ADMIN_PASSWORD
-        
-        cursor.execute('SELECT id FROM users WHERE email = ?', (admin_email,))
-        if not cursor.fetchone():
+    print("🔄 Инициализация БД...")
+    try:
+        with get_db() as conn:
+            cursor = conn.cursor()
+            
+            # Пользователи
             cursor.execute('''
-                INSERT INTO users (email, password_hash, role, balance)
-                VALUES (?, ?, ?, ?)
-            ''', (admin_email, generate_password_hash(admin_pass), 'admin', 999999))
+                CREATE TABLE IF NOT EXISTS users (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    email TEXT UNIQUE NOT NULL,
+                    password_hash TEXT NOT NULL,
+                    balance REAL DEFAULT 0,
+                    role TEXT DEFAULT 'user',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    is_active BOOLEAN DEFAULT 1,
+                    last_login TIMESTAMP
+                )
+            ''')
+            
+            # Настройки ВК
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS vk_settings (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER UNIQUE NOT NULL,
+                    vk_token TEXT,
+                    group_id TEXT,
+                    is_configured BOOLEAN DEFAULT 0,
+                    is_active BOOLEAN DEFAULT 1,
+                    last_post_time TIMESTAMP,
+                    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+                )
+            ''')
+            
+            # Темы
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS topics (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL,
+                    topic TEXT NOT NULL,
+                    is_morning BOOLEAN DEFAULT 0,
+                    is_active BOOLEAN DEFAULT 1,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+                )
+            ''')
+            
+            # Расписание
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS schedule (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL,
+                    time TEXT NOT NULL,
+                    days TEXT DEFAULT 'Ежедневно',
+                    is_active BOOLEAN DEFAULT 1,
+                    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+                )
+            ''')
+            
+            # История постов
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS posts_history (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL,
+                    topic TEXT,
+                    text TEXT,
+                    status TEXT,
+                    cost REAL DEFAULT 0.50,
+                    error TEXT,
+                    post_id TEXT,
+                    published_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+                )
+            ''')
+            
+            # Платежи
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS payments (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL,
+                    amount REAL NOT NULL,
+                    status TEXT DEFAULT 'pending',
+                    payment_id TEXT,
+                    payment_url TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    completed_at TIMESTAMP,
+                    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+                )
+            ''')
+            
+            # Индексы
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_topics_user_id ON topics(user_id)')
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_schedule_user_id ON schedule(user_id)')
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_history_user_id ON posts_history(user_id)')
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_payments_user_id ON payments(user_id)')
+            
             conn.commit()
-            print(f"✅ Создан администратор: {admin_email} / {admin_pass}")
+            
+            # Создаём администратора
+            from werkzeug.security import generate_password_hash
+            admin_email = Config.ADMIN_EMAIL
+            admin_pass = Config.ADMIN_PASSWORD
+            
+            cursor.execute('SELECT id FROM users WHERE email = ?', (admin_email,))
+            if not cursor.fetchone():
+                cursor.execute('''
+                    INSERT INTO users (email, password_hash, role, balance)
+                    VALUES (?, ?, ?, ?)
+                ''', (admin_email, generate_password_hash(admin_pass), 'admin', 999999))
+                conn.commit()
+                print(f"✅ Создан администратор: {admin_email} / {admin_pass}")
+            
+            print("✅ База данных инициализирована успешно!")
+            
+    except Exception as e:
+        print(f"❌ Ошибка инициализации БД: {e}")
+        raise e
 
 def get_user_topics(user_id, is_morning=False):
     with get_db() as conn:
