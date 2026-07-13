@@ -1,50 +1,72 @@
+import sys
+import os
 from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify
 from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
-import os
-import sys
-
-from config import Config
-from database import init_db, get_db
+import time
 
 print("=" * 60)
-print("🚀 ЗАПУСК APP.PY (упрощённая версия)")
+print("🚀 ЗАПУСК APP.PY")
+print("=" * 60)
+print(f"Python version: {sys.version}")
+print(f"Current directory: {os.getcwd()}")
+print(f"Files in directory: {os.listdir('.')}")
+print("=" * 60)
+
+try:
+    from config import Config
+    print("✅ Config импортирован")
+except Exception as e:
+    print(f"❌ Ошибка импорта Config: {e}")
+    sys.exit(1)
+
+try:
+    from database import init_db, get_db
+    print("✅ Database импортирован")
+except Exception as e:
+    print(f"❌ Ошибка импорта Database: {e}")
+    sys.exit(1)
+
+try:
+    from bot import start_bot
+    print("✅ Bot импортирован")
+except Exception as e:
+    print(f"❌ Ошибка импорта Bot: {e}")
+    sys.exit(1)
+
 print("=" * 60)
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = Config.SECRET_KEY
+print("✅ Flask приложение создано")
+
+try:
+    app.config['SECRET_KEY'] = Config.SECRET_KEY
+    print("✅ SECRET_KEY загружен")
+except Exception as e:
+    print(f"❌ Ошибка SECRET_KEY: {e}")
+    sys.exit(1)
+
 app.config['PERMANENT_SESSION_LIFETIME'] = 86400
 
-# Инициализация БД
-init_db()
+print("🔄 Инициализация БД...")
+try:
+    init_db()
+    print("✅ БД инициализирована")
+except Exception as e:
+    print(f"❌ Ошибка инициализации БД: {e}")
+    sys.exit(1)
 
-# ==================== ДЕКОРАТОРЫ ====================
+print("🔄 Запуск бота...")
+try:
+    start_bot()
+    print("✅ Бот запущен")
+except Exception as e:
+    print(f"❌ Ошибка запуска бота: {e}")
+    sys.exit(1)
 
-def login_required(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if 'user_id' not in session:
-            flash('Пожалуйста, войдите в систему', 'warning')
-            return redirect(url_for('login'))
-        return f(*args, **kwargs)
-    return decorated_function
-
-def admin_required(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if 'user_id' not in session:
-            flash('Пожалуйста, войдите в систему', 'warning')
-            return redirect(url_for('login'))
-        
-        with get_db() as conn:
-            cursor = conn.cursor()
-            cursor.execute('SELECT role FROM users WHERE id = ?', (session['user_id'],))
-            user = cursor.fetchone()
-            if not user or user['role'] != 'admin':
-                flash('Доступ запрещён', 'danger')
-                return redirect(url_for('dashboard'))
-        return f(*args, **kwargs)
-    return decorated_function
+print("=" * 60)
+print("✅ ВСЕ ИМПОРТЫ И ИНИЦИАЛИЗАЦИЯ УСПЕШНЫ")
+print("=" * 60)
 
 # ==================== HEALTH CHECK ====================
 
@@ -443,12 +465,14 @@ def balance():
                     flash('Минимальная сумма 10 ₽', 'danger')
                     return redirect(url_for('balance'))
                 
+                # Временное решение - пополнение без ЮKassa
                 cursor.execute('UPDATE users SET balance = balance + ? WHERE id = ?', 
                               (amount, session['user_id']))
                 conn.commit()
                 
                 session['balance'] += amount
                 
+                # Сохраняем историю платежа
                 cursor.execute('''
                     INSERT INTO payments (user_id, amount, status)
                     VALUES (?, ?, ?)
@@ -513,9 +537,9 @@ def admin_toggle_user(user_id):
     flash('Статус пользователя изменён', 'success')
     return redirect(url_for('admin_panel'))
 
-print("=" * 60)
+# ==================== ЗАПУСК ====================
+
 print("✅ Приложение загружено, запускаю сервер...")
-print("=" * 60)
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=8000, debug=False)
