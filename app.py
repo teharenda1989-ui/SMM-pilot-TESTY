@@ -95,9 +95,9 @@ def register():
             
             password_hash = generate_password_hash(password)
             cursor.execute('''
-                INSERT INTO users (email, password_hash, balance)
-                VALUES (?, ?, ?)
-            ''', (email, password_hash, 0.0))
+                INSERT INTO users (email, password_hash, balance, timezone)
+                VALUES (?, ?, ?, ?)
+            ''', (email, password_hash, 0.0, 'Asia/Novosibirsk'))
             conn.commit()
             user_id = cursor.lastrowid
             
@@ -156,7 +156,7 @@ def login():
         
         with get_db() as conn:
             cursor = conn.cursor()
-            cursor.execute('SELECT id, email, password_hash, role, balance FROM users WHERE email = ?', (email,))
+            cursor.execute('SELECT id, email, password_hash, role, balance, timezone FROM users WHERE email = ?', (email,))
             user = cursor.fetchone()
             
             if user and check_password_hash(user['password_hash'], password):
@@ -229,7 +229,7 @@ def dashboard():
                          recent_posts=recent_posts,
                          post_price=Config.POST_PRICE)
 
-# ==================== НАСТРОЙКИ VK (ИСПРАВЛЕНЫ) ====================
+# ==================== НАСТРОЙКИ VK ====================
 
 @app.route('/settings', methods=['GET', 'POST'])
 @login_required
@@ -261,14 +261,12 @@ def settings():
             existing = cursor.fetchone()
             
             if existing:
-                # Обновляем существующую запись
                 cursor.execute('''
                     UPDATE vk_settings 
                     SET vk_token = ?, group_id = ?, is_configured = ?, is_active = ?
                     WHERE user_id = ?
                 ''', (vk_token, group_id, is_configured, int(is_active), session['user_id']))
             else:
-                # Вставляем новую запись
                 cursor.execute('''
                     INSERT INTO vk_settings (user_id, vk_token, group_id, is_configured, is_active)
                     VALUES (?, ?, ?, ?, ?)
@@ -351,7 +349,7 @@ def delete_topic(topic_id):
     flash('Тема удалена', 'info')
     return redirect(request.referrer or url_for('topics'))
 
-# ==================== РАСПИСАНИЕ (С ЗАМЕНОЙ) ====================
+# ==================== РАСПИСАНИЕ ====================
 
 @app.route('/schedule', methods=['GET', 'POST'])
 @login_required
@@ -567,7 +565,6 @@ def groups():
                     flash('Заполните все поля', 'danger')
                     return redirect(url_for('groups'))
                 
-                # Проверяем токен
                 try:
                     import vk_api
                     vk_session = vk_api.VkApi(token=vk_token)
@@ -603,11 +600,62 @@ def groups():
             
             return redirect(url_for('groups'))
         
-        # Получаем все группы пользователя
         cursor.execute('SELECT * FROM vk_settings WHERE user_id = ?', (session['user_id'],))
         groups_list = cursor.fetchall()
     
     return render_template('groups.html', groups=groups_list)
+
+# ==================== НАСТРОЙКИ ВРЕМЕНИ ====================
+
+@app.route('/timezone', methods=['GET', 'POST'])
+@login_required
+def timezone_settings():
+    with get_db() as conn:
+        cursor = conn.cursor()
+        
+        cursor.execute('SELECT timezone FROM users WHERE id = ?', (session['user_id'],))
+        user = cursor.fetchone()
+        current_timezone = user['timezone'] if user else 'Asia/Novosibirsk'
+        
+        if request.method == 'POST':
+            new_timezone = request.form.get('timezone')
+            
+            if new_timezone:
+                cursor.execute('''
+                    UPDATE users SET timezone = ? WHERE id = ?
+                ''', (new_timezone, session['user_id']))
+                conn.commit()
+                flash(f'✅ Часовой пояс изменён на {new_timezone}', 'success')
+                return redirect(url_for('timezone_settings'))
+        
+        import pytz
+        from datetime import datetime
+        
+        timezones = [
+            ('UTC', 'UTC (Всемирное координированное время)'),
+            ('Europe/Moscow', 'Москва (UTC+3)'),
+            ('Europe/Volgograd', 'Волгоград (UTC+4)'),
+            ('Asia/Yekaterinburg', 'Екатеринбург (UTC+5)'),
+            ('Asia/Omsk', 'Омск (UTC+6)'),
+            ('Asia/Novosibirsk', 'Новосибирск (UTC+7) — по умолчанию'),
+            ('Asia/Krasnoyarsk', 'Красноярск (UTC+7)'),
+            ('Asia/Irkutsk', 'Иркутск (UTC+8)'),
+            ('Asia/Yakutsk', 'Якутск (UTC+9)'),
+            ('Asia/Vladivostok', 'Владивосток (UTC+10)'),
+            ('Asia/Magadan', 'Магадан (UTC+11)'),
+            ('Asia/Kamchatka', 'Камчатка (UTC+12)'),
+        ]
+        
+        try:
+            tz = pytz.timezone(current_timezone)
+            current_time = datetime.now(tz).strftime('%Y-%m-%d %H:%M:%S')
+        except:
+            current_time = 'Ошибка определения времени'
+    
+    return render_template('timezone.html', 
+                         current_timezone=current_timezone,
+                         timezones=timezones,
+                         current_time=current_time)
 
 # ==================== ЗАПУСК ====================
 
