@@ -6,9 +6,10 @@ import vk_api
 from datetime import datetime, timezone, timedelta
 import random
 from dotenv import load_dotenv
+import pytz
 
 from config import Config
-from database import get_db, deduct_post_cost, get_user_topics, get_user_schedule, get_user_groups
+from database import get_db, deduct_post_cost, get_user_topics, get_user_schedule, get_user_groups, get_user_timezone
 
 load_dotenv()
 
@@ -17,11 +18,14 @@ YANDEX_FOLDER_ID = Config.YANDEX_FOLDER_ID
 YANDEX_API_KEY = Config.YANDEX_API_KEY
 POST_PRICE = Config.POST_PRICE
 
-# Временная зона
-NOVOSIBIRSK_TZ = timezone(timedelta(hours=7))
-
-def get_novosibirsk_time():
-    return datetime.now(timezone.utc).astimezone(NOVOSIBIRSK_TZ)
+def get_user_time(user_id):
+    """Получить текущее время пользователя с его часовым поясом"""
+    timezone_str = get_user_timezone(user_id)
+    try:
+        tz = pytz.timezone(timezone_str)
+        return datetime.now(tz)
+    except:
+        return datetime.now(timezone.utc)
 
 def generate_text(topic, style='информативный'):
     try:
@@ -101,7 +105,8 @@ def process_user(user_id):
             if not user or user['balance'] < POST_PRICE:
                 return
         
-        now = get_novosibirsk_time()
+        # ===== ВРЕМЯ ПО ЧАСОВОМУ ПОЯСУ ПОЛЬЗОВАТЕЛЯ =====
+        now = get_user_time(user_id)
         current_time = now.strftime("%H:%M")
         
         schedule = get_user_schedule(user_id)
@@ -139,9 +144,8 @@ def process_user(user_id):
             if current_time < start_time or current_time > end_time:
                 continue
             
-            # ВСЕ ПРОВЕРКИ ПРОЙДЕНЫ → ПУБЛИКУЕМ ВО ВСЕ ГРУППЫ
+            # ВСЕ ПРОВЕРКИ ПРОЙДЕНЫ → ПУБЛИКУЕМ
             
-            # Выбираем тему
             topics = get_user_topics(user_id)
             if not topics:
                 return
@@ -161,7 +165,6 @@ def process_user(user_id):
                     conn.commit()
                 return
             
-            # Публикуем в каждую группу
             for group in groups:
                 try:
                     post_id = publish_post(
@@ -187,7 +190,7 @@ def process_user(user_id):
                         ''', (user_id, topic, text[:500], status, cost, error, post_id))
                         conn.commit()
                     
-                    print(f"✅ Пользователь {user_id}: Пост опубликован в группе {group['group_id']} в {current_time}!")
+                    print(f"✅ Пользователь {user_id}: Пост опубликован в {current_time}!")
                     
                 except Exception as e:
                     with get_db() as conn:
@@ -199,14 +202,14 @@ def process_user(user_id):
                         conn.commit()
                     print(f"❌ Пользователь {user_id}: Ошибка в группе {group['group_id']} - {e}")
             
-            break  # Выходим после первой публикации
+            break
             
     except Exception as e:
         print(f"⚠️ Ошибка обработки пользователя {user_id}: {e}")
 
 def bot_loop():
     print("=" * 60)
-    print("🤖 SMM Пилот Бот запущен (несколько групп)!")
+    print("🤖 SMM Пилот Бот запущен (с выбором часового пояса)!")
     print("=" * 60)
     print(f"💲 Стоимость поста: {POST_PRICE} ₽")
     print("=" * 60)
@@ -215,8 +218,8 @@ def bot_loop():
     
     while True:
         try:
-            now = get_novosibirsk_time()
-            current_minute = now.strftime("%Y-%m-%d %H:%M")
+            now_utc = datetime.now(timezone.utc)
+            current_minute = now_utc.strftime("%Y-%m-%d %H:%M")
             
             if current_minute != last_minute:
                 last_minute = current_minute
@@ -235,7 +238,7 @@ def bot_loop():
                     users = cursor.fetchall()
                 
                 if users:
-                    print(f"⏰ {current_minute} - Обработка {len(users)} пользователей...")
+                    print(f"⏰ {current_minute} UTC - Обработка {len(users)} пользователей...")
                     for user in users:
                         process_user(user['id'])
                     time.sleep(5)
