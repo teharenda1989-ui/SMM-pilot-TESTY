@@ -8,7 +8,7 @@ import random
 from dotenv import load_dotenv
 
 from config import Config
-from database import get_db, deduct_post_cost, get_user_topics, get_user_schedule, get_vk_settings
+from database import get_db, deduct_post_cost, get_user_topics, get_user_schedule, get_user_groups
 
 load_dotenv()
 
@@ -88,10 +88,12 @@ def publish_post(vk_token, group_id, text):
 
 def process_user(user_id):
     try:
-        vk_settings = get_vk_settings(user_id)
-        if not vk_settings or not vk_settings['is_configured'] or not vk_settings['is_active']:
+        # Получаем все группы пользователя
+        groups = get_user_groups(user_id)
+        if not groups:
             return
         
+        # Проверяем баланс
         with get_db() as conn:
             cursor = conn.cursor()
             cursor.execute('SELECT balance FROM users WHERE id = ?', (user_id,))
@@ -124,23 +126,20 @@ def process_user(user_id):
         }
         
         for item in schedule:
-            # Проверяем конкретное время
             if item['time'] != current_time:
                 continue
             
-            # Проверяем дни недели
             days_of_week = item.get('days_of_week', 'all')
             allowed_days = days_map.get(days_of_week, ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'])
             if today not in allowed_days:
                 continue
             
-            # Проверяем диапазон времени (если есть)
             start_time = item.get('start_time', '10:00')
             end_time = item.get('end_time', '22:00')
             if current_time < start_time or current_time > end_time:
                 continue
             
-            # ВСЕ ПРОВЕРКИ ПРОЙДЕНЫ → ПУБЛИКУЕМ
+            # ВСЕ ПРОВЕРКИ ПРОЙДЕНЫ → ПУБЛИКУЕМ ВО ВСЕ ГРУППЫ
             
             # Выбираем тему
             topics = get_user_topics(user_id)
@@ -162,41 +161,43 @@ def process_user(user_id):
                     conn.commit()
                 return
             
-            try:
-                post_id = publish_post(
-                    vk_settings['vk_token'],
-                    vk_settings['group_id'],
-                    text
-                )
-                
-                if deduct_post_cost(user_id):
-                    status = 'published'
-                    cost = POST_PRICE
-                    error = None
-                else:
-                    status = 'insufficient_balance'
-                    cost = 0
-                    error = 'Недостаточно средств'
-                
-                with get_db() as conn:
-                    cursor = conn.cursor()
-                    cursor.execute('''
-                        INSERT INTO posts_history (user_id, topic, text, status, cost, error, post_id)
-                        VALUES (?, ?, ?, ?, ?, ?, ?)
-                    ''', (user_id, topic, text[:500], status, cost, error, post_id))
-                    conn.commit()
-                
-                print(f"✅ Пользователь {user_id}: Пост опубликован в {current_time}!")
-                
-            except Exception as e:
-                with get_db() as conn:
-                    cursor = conn.cursor()
-                    cursor.execute('''
-                        INSERT INTO posts_history (user_id, topic, text, status, error)
-                        VALUES (?, ?, ?, ?, ?)
-                    ''', (user_id, topic, text[:500], 'failed', str(e)))
-                    conn.commit()
-                print(f"❌ Пользователь {user_id}: Ошибка - {e}")
+            # Публикуем в каждую группу
+            for group in groups:
+                try:
+                    post_id = publish_post(
+                        group['vk_token'],
+                        group['group_id'],
+                        text
+                    )
+                    
+                    if deduct_post_cost(user_id):
+                        status = 'published'
+                        cost = POST_PRICE
+                        error = None
+                    else:
+                        status = 'insufficient_balance'
+                        cost = 0
+                        error = 'Недостаточно средств'
+                    
+                    with get_db() as conn:
+                        cursor = conn.cursor()
+                        cursor.execute('''
+                            INSERT INTO posts_history (user_id, topic, text, status, cost, error, post_id)
+                            VALUES (?, ?, ?, ?, ?, ?, ?)
+                        ''', (user_id, topic, text[:500], status, cost, error, post_id))
+                        conn.commit()
+                    
+                    print(f"✅ Пользователь {user_id}: Пост опубликован в группе {group['group_id']} в {current_time}!")
+                    
+                except Exception as e:
+                    with get_db() as conn:
+                        cursor = conn.cursor()
+                        cursor.execute('''
+                            INSERT INTO posts_history (user_id, topic, text, status, error)
+                            VALUES (?, ?, ?, ?, ?)
+                        ''', (user_id, topic, text[:500], 'failed', str(e)))
+                        conn.commit()
+                    print(f"❌ Пользователь {user_id}: Ошибка в группе {group['group_id']} - {e}")
             
             break  # Выходим после первой публикации
             
@@ -205,7 +206,7 @@ def process_user(user_id):
 
 def bot_loop():
     print("=" * 60)
-    print("🤖 SMM Пилот Бот запущен (гибкое расписание)!")
+    print("🤖 SMM Пилот Бот запущен (несколько групп)!")
     print("=" * 60)
     print(f"💲 Стоимость поста: {POST_PRICE} ₽")
     print("=" * 60)
