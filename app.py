@@ -229,6 +229,8 @@ def dashboard():
                          recent_posts=recent_posts,
                          post_price=Config.POST_PRICE)
 
+# ==================== НАСТРОЙКИ VK (ИСПРАВЛЕНЫ) ====================
+
 @app.route('/settings', methods=['GET', 'POST'])
 @login_required
 def settings():
@@ -254,15 +256,24 @@ def settings():
                 flash(f'Ошибка подключения к VK: {str(e)}', 'danger')
                 is_configured = 0
             
-            cursor.execute('''
-                INSERT INTO vk_settings (user_id, vk_token, group_id, is_configured, is_active)
-                VALUES (?, ?, ?, ?, ?)
-                ON CONFLICT(user_id) DO UPDATE SET
-                    vk_token = excluded.vk_token,
-                    group_id = excluded.group_id,
-                    is_configured = excluded.is_configured,
-                    is_active = excluded.is_active
-            ''', (session['user_id'], vk_token, group_id, is_configured, int(is_active)))
+            # Проверяем, есть ли уже настройки у пользователя
+            cursor.execute('SELECT id FROM vk_settings WHERE user_id = ?', (session['user_id'],))
+            existing = cursor.fetchone()
+            
+            if existing:
+                # Обновляем существующую запись
+                cursor.execute('''
+                    UPDATE vk_settings 
+                    SET vk_token = ?, group_id = ?, is_configured = ?, is_active = ?
+                    WHERE user_id = ?
+                ''', (vk_token, group_id, is_configured, int(is_active), session['user_id']))
+            else:
+                # Вставляем новую запись
+                cursor.execute('''
+                    INSERT INTO vk_settings (user_id, vk_token, group_id, is_configured, is_active)
+                    VALUES (?, ?, ?, ?, ?)
+                ''', (session['user_id'], vk_token, group_id, is_configured, int(is_active)))
+            
             conn.commit()
             
             flash('Настройки сохранены!', 'success')
