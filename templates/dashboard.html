@@ -34,11 +34,12 @@
     </div>
 </div>
 
-<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin: 24px 0;">
-    <a href="{{ url_for('settings') }}" class="btn btn-primary" style="text-align: center;">⚙️ Настройки VK</a>
-    <a href="{{ url_for('groups') }}" class="btn btn-primary" style="text-align: center;">📱 Группы VK</a>
-    <a href="{{ url_for('topics') }}" class="btn btn-primary" style="text-align: center;">📝 Управление темами</a>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin: 24px 0;">
+    <a href="{{ url_for('settings') }}" class="btn btn-primary" style="text-align: center;">⚙️ VK</a>
+    <a href="{{ url_for('groups') }}" class="btn btn-primary" style="text-align: center;">📱 Группы</a>
+    <a href="{{ url_for('topics') }}" class="btn btn-primary" style="text-align: center;">📝 Темы</a>
     <a href="{{ url_for('schedule') }}" class="btn btn-primary" style="text-align: center;">⏰ Расписание</a>
+    <a href="{{ url_for('timezone_settings') }}" class="btn btn-primary" style="text-align: center;">🕐 Время</a>
     <a href="{{ url_for('history') }}" class="btn btn-primary" style="text-align: center;">📜 История</a>
 </div>
 
