@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+
+{% block title %}Управление группами VK — SMM Пилот{% endblock %}
+
+{% block content %}
+<h1 style="font-size: 28px; margin-bottom: 24px;">📱 Управление группами VK</h1>
+
+<div style="display: grid; grid-template-columns: 2fr 1fr; gap: 24px;">
+    <!-- Список групп -->
+    <div class="card">
+        <h3>📋 Мои группы ({{ groups|length }})</h3>
+        
+        <div style="max-height: 500px; overflow-y: auto;">
+            {% for group in groups %}
+                <div style="display: flex; justify-content: space-between; align-items: center; 
+                            padding: 12px 0; border-bottom: 1px solid var(--border-color);">
+                    <div>
+                        <strong style="color: var(--accent);">
+                            {% if group.group_name %}
+                                {{ group.group_name }}
+                            {% else %}
+                                Группа {{ group.group_id }}
+                            {% endif %}
+                        </strong>
+                        <br>
+                        <span style="font-size: 13px; color: var(--text-secondary);">
+                            ID: {{ group.group_id }}
+                        </span>
+                        <br>
+                        <span style="font-size: 12px; color: var(--text-secondary);">
+                            {% if group.is_configured %}
+                                ✅ Настроена
+                            {% else %}
+                                ❌ Не настроена
+                            {% endif %}
+                            | 
+                            {% if group.is_active %}
+                                🟢 Активна
+                            {% else %}
+                                🔴 Остановлена
+                            {% endif %}
+                        </span>
+                    </div>
+                    <div style="display: flex; gap: 8px;">
+                        <form method="POST" style="display: inline;">
+                            <input type="hidden" name="action" value="toggle">
+                            <input type="hidden" name="group_id_db" value="{{ group.id }}">
+                            <button type="submit" class="btn btn-warning" style="padding: 4px 12px; font-size: 12px;">
+                                {% if group.is_active %}⏸️{% else %}▶️{% endif %}
+                            </button>
+                        </form>
+                        <form method="POST" style="display: inline;" 
+                              onsubmit="return confirm('Удалить группу?')">
+                            <input type="hidden" name="action" value="delete">
+                            <input type="hidden" name="group_id_db" value="{{ group.id }}">
+                            <button type="submit" class="btn btn-danger" style="padding: 4px 12px; font-size: 12px;">
+                                🗑️
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            {% else %}
+                <p style="color: var(--text-secondary); text-align: center; padding: 20px 0;">
+                    Нет добавленных групп
+                </p>
+            {% endfor %}
+        </div>
+    </div>
+    
+    <!-- Добавление группы -->
+    <div class="card">
+        <h3>➕ Добавить группу</h3>
+        
+        <form method="POST">
+            <input type="hidden" name="action" value="add">
+            
+            <div class="form-group">
+                <label class="form-label">🔑 VK API Токен</label>
+                <input type="password" name="vk_token" class="form-control" 
+                       placeholder="vk1.a.****" required>
+                <small style="color: var(--text-secondary);">
+                    <a href="https://vkhost.github.io/" target="_blank" style="color: var(--accent);">
+                        Получить токен
+                    </a>
+                </small>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">🆔 ID группы</label>
+                <input type="text" name="group_id" class="form-control" 
+                       placeholder="123456789" required>
+                <small style="color: var(--text-secondary);">
+                    ID группы (число, без минуса)
+                </small>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">📝 Название (опционально)</label>
+                <input type="text" name="group_name" class="form-control" 
+                       placeholder="Моя группа">
+            </div>
+            
+            <button type="submit" class="btn btn-primary" style="width: 100%;">
+                ➕ Добавить группу
+            </button>
+        </form>
+        
+        <div style="margin-top: 16px; padding: 12px; background: var(--bg-tertiary); border-radius: 6px;">
+            <p style="color: var(--text-secondary); font-size: 13px;">
+                💡 Вы можете добавить неограниченное количество групп
+            </p>
+            <p style="color: var(--text-secondary); font-size: 13px;">
+                💡 Для каждой группы нужен свой токен VK
+            </p>
+        </div>
+    </div>
+</div>
+{% endblock %}
