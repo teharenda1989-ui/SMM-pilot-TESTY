@@ -340,7 +340,7 @@ def delete_topic(topic_id):
     flash('Тема удалена', 'info')
     return redirect(request.referrer or url_for('topics'))
 
-# ==================== РАСПИСАНИЕ ====================
+# ==================== РАСПИСАНИЕ (С ЗАМЕНОЙ) ====================
 
 @app.route('/schedule', methods=['GET', 'POST'])
 @login_required
@@ -354,6 +354,9 @@ def schedule():
             interval_minutes = int(request.form.get('interval_minutes', 30))
             days_of_week = request.form.get('days_of_week', 'all')
             days = request.form.get('days', 'Ежедневно')
+            
+            # УДАЛЯЕМ СТАРОЕ РАСПИСАНИЕ
+            cursor.execute('DELETE FROM schedule WHERE user_id = ?', (session['user_id'],))
             
             from datetime import datetime, timedelta
             
@@ -373,7 +376,7 @@ def schedule():
                 ''', (session['user_id'], time, days, start_time, end_time, interval_minutes, days_of_week))
             
             conn.commit()
-            flash(f'✅ Добавлено {len(times)} времен публикации!', 'success')
+            flash(f'✅ Расписание обновлено! Добавлено {len(times)} времен публикации!', 'success')
             return redirect(url_for('schedule'))
         
         cursor.execute('SELECT * FROM schedule WHERE user_id = ? AND is_active = 1 ORDER BY time', 
@@ -532,6 +535,70 @@ def admin_toggle_user(user_id):
         conn.commit()
     flash('Статус пользователя изменён', 'success')
     return redirect(url_for('admin_panel'))
+
+# ==================== УПРАВЛЕНИЕ ГРУППАМИ VK ====================
+
+@app.route('/groups', methods=['GET', 'POST'])
+@login_required
+def groups():
+    with get_db() as conn:
+        cursor = conn.cursor()
+        
+        if request.method == 'POST':
+            action = request.form.get('action')
+            
+            if action == 'add':
+                vk_token = request.form.get('vk_token')
+                group_id = request.form.get('group_id')
+                group_name = request.form.get('group_name', 'Группа ВК')
+                
+                if not vk_token or not group_id:
+                    flash('Заполните все поля', 'danger')
+                    return redirect(url_for('groups'))
+                
+                # Проверяем токен
+                try:
+                    import vk_api
+                    vk_session = vk_api.VkApi(token=vk_token)
+                    vk = vk_session.get_api()
+                    info = vk.groups.getById(group_id=group_id)
+                    group_name = info[0]['name']
+                    is_configured = 1
+                except Exception as e:
+                    flash(f'Ошибка подключения к VK: {str(e)}', 'danger')
+                    is_configured = 0
+                
+                cursor.execute('''
+                    INSERT INTO vk_settings (user_id, vk_token, group_id, group_name, is_configured, is_active)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                ''', (session['user_id'], vk_token, group_id, group_name, is_configured, 1))
+                conn.commit()
+                flash(f'✅ Группа "{group_name}" добавлена!', 'success')
+            
+            elif action == 'delete':
+                group_id_db = request.form.get('group_id_db')
+                cursor.execute('DELETE FROM vk_settings WHERE id = ? AND user_id = ?', 
+                              (group_id_db, session['user_id']))
+                conn.commit()
+                flash('Группа удалена', 'info')
+            
+            elif action == 'toggle':
+                group_id_db = request.form.get('group_id_db')
+                cursor.execute('''
+                    UPDATE vk_settings SET is_active = NOT is_active WHERE id = ? AND user_id = ?
+                ''', (group_id_db, session['user_id']))
+                conn.commit()
+                flash('Статус группы изменён', 'success')
+            
+            return redirect(url_for('groups'))
+        
+        # Получаем все группы пользователя
+        cursor.execute('SELECT * FROM vk_settings WHERE user_id = ?', (session['user_id'],))
+        groups_list = cursor.fetchall()
+    
+    return render_template('groups.html', groups=groups_list)
+
+# ==================== ЗАПУСК ====================
 
 print("=" * 60)
 print("✅ Приложение загружено, запускаю сервер...")
