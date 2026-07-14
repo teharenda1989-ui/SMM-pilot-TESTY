@@ -35,16 +35,18 @@ def init_db():
                 )
             ''')
             
-            # Настройки ВК
+            # Настройки ВК (НЕСКОЛЬКО ГРУПП)
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS vk_settings (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    user_id INTEGER UNIQUE NOT NULL,
+                    user_id INTEGER NOT NULL,
                     vk_token TEXT,
                     group_id TEXT,
+                    group_name TEXT,
                     is_configured BOOLEAN DEFAULT 0,
                     is_active BOOLEAN DEFAULT 1,
                     last_post_time TIMESTAMP,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
                 )
             ''')
@@ -62,7 +64,7 @@ def init_db():
                 )
             ''')
             
-            # Расписание (ДОБАВЛЕНЫ НОВЫЕ ПОЛЯ)
+            # Расписание
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS schedule (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -78,7 +80,7 @@ def init_db():
                 )
             ''')
             
-            # Добавляем новые колонки, если их нет (для существующей БД)
+            # Добавляем новые колонки для schedule (если их нет)
             try:
                 cursor.execute("ALTER TABLE schedule ADD COLUMN start_time TEXT DEFAULT '10:00'")
             except:
@@ -174,12 +176,26 @@ def get_user_schedule(user_id):
         ''', (user_id,))
         return cursor.fetchall()
 
+def get_user_groups(user_id):
+    """Получить все группы пользователя"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT id, vk_token, group_id, group_name, is_configured, is_active 
+            FROM vk_settings 
+            WHERE user_id = ? AND is_configured = 1 AND is_active = 1
+        ''', (user_id,))
+        return cursor.fetchall()
+
 def get_vk_settings(user_id):
+    """Получить первую группу (для совместимости)"""
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute('''
             SELECT vk_token, group_id, is_configured, is_active 
-            FROM vk_settings WHERE user_id = ?
+            FROM vk_settings 
+            WHERE user_id = ? AND is_active = 1
+            LIMIT 1
         ''', (user_id,))
         return cursor.fetchone()
 
@@ -193,27 +209,3 @@ def deduct_post_cost(user_id):
             conn.commit()
             return True
         return False
-
-def add_schedule(user_id, start_time, end_time, interval_minutes, days_of_week, days):
-    """Добавление расписания с генерацией всех времён"""
-    from datetime import datetime, timedelta
-    
-    start_dt = datetime.strptime(start_time, '%H:%M')
-    end_dt = datetime.strptime(end_time, '%H:%M')
-    
-    times = []
-    current = start_dt
-    while current <= end_dt:
-        times.append(current.strftime('%H:%M'))
-        current += timedelta(minutes=interval_minutes)
-    
-    with get_db() as conn:
-        cursor = conn.cursor()
-        for time in times:
-            cursor.execute('''
-                INSERT INTO schedule (user_id, time, days, start_time, end_time, interval_minutes, days_of_week)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            ''', (user_id, time, days, start_time, end_time, interval_minutes, days_of_week))
-        conn.commit()
-    
-    return len(times)
