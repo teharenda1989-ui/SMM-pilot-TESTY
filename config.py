@@ -6,7 +6,7 @@ load_dotenv()
 class Config:
     SECRET_KEY = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production')
     
-    # ===== БАЗА ДАННЫХ ПРЯМО В КОРНЕ /app =====
+    # База данных
     DATABASE_PATH = 'smm_bot.db'
     
     # Yandex GPT
