@@ -21,7 +21,7 @@ def init_db():
         with get_db() as conn:
             cursor = conn.cursor()
             
-            # Пользователи
+            # Пользователи (добавлено поле timezone)
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS users (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -31,11 +31,18 @@ def init_db():
                     role TEXT DEFAULT 'user',
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     is_active BOOLEAN DEFAULT 1,
-                    last_login TIMESTAMP
+                    last_login TIMESTAMP,
+                    timezone TEXT DEFAULT 'Asia/Novosibirsk'
                 )
             ''')
             
-            # Настройки ВК (НЕСКОЛЬКО ГРУПП)
+            # Добавляем колонку timezone если её нет
+            try:
+                cursor.execute("ALTER TABLE users ADD COLUMN timezone TEXT DEFAULT 'Asia/Novosibirsk'")
+            except:
+                pass
+            
+            # Настройки ВК (несколько групп)
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS vk_settings (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -145,9 +152,9 @@ def init_db():
             cursor.execute('SELECT id FROM users WHERE email = ?', (admin_email,))
             if not cursor.fetchone():
                 cursor.execute('''
-                    INSERT INTO users (email, password_hash, role, balance)
-                    VALUES (?, ?, ?, ?)
-                ''', (admin_email, generate_password_hash(admin_pass), 'admin', 999999))
+                    INSERT INTO users (email, password_hash, role, balance, timezone)
+                    VALUES (?, ?, ?, ?, ?)
+                ''', (admin_email, generate_password_hash(admin_pass), 'admin', 999999, 'Asia/Novosibirsk'))
                 conn.commit()
                 print(f"✅ Создан администратор: {admin_email} / {admin_pass}")
             
@@ -186,6 +193,16 @@ def get_user_groups(user_id):
             WHERE user_id = ? AND is_configured = 1 AND is_active = 1
         ''', (user_id,))
         return cursor.fetchall()
+
+def get_user_timezone(user_id):
+    """Получить часовой пояс пользователя"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute('SELECT timezone FROM users WHERE id = ?', (user_id,))
+        user = cursor.fetchone()
+        if user and user['timezone']:
+            return user['timezone']
+        return 'Asia/Novosibirsk'
 
 def get_vk_settings(user_id):
     """Получить первую группу (для совместимости)"""
