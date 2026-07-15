@@ -8,7 +8,15 @@
 <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 24px;">
     <!-- Список расписания -->
     <div class="card">
-        <h3>📅 Текущее расписание</h3>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+            <h3>📅 Текущее расписание ({{ schedule|length }})</h3>
+            <form method="POST" action="{{ url_for('clear_schedule') }}" 
+                  onsubmit="return confirm('Удалить ВСЁ расписание? Это действие необратимо!')">
+                <button type="submit" class="btn btn-danger" style="padding: 4px 16px; font-size: 12px;">
+                    🗑️ Очистить всё
+                </button>
+            </form>
+        </div>
         
         <div style="max-height: 500px; overflow-y: auto;">
             {% for item in schedule %}
