@@ -304,7 +304,7 @@ def test_vk():
             'message': str(e)
         }), 400
 
-# ==================== УПРАВЛЕНИЕ ТЕМАМИ (С МАССОВЫМ ДОБАВЛЕНИЕМ) ====================
+# ==================== УПРАВЛЕНИЕ ТЕМАМИ ====================
 
 @app.route('/topics', methods=['GET', 'POST'])
 @login_required
@@ -318,7 +318,6 @@ def topics():
             
             if topics_bulk:
                 import re
-                # Разделяем по запятым и переводам строк
                 topics_list = re.split(r'[,\n]+', topics_bulk)
                 topics_list = [t.strip() for t in topics_list if t.strip()]
                 
@@ -358,7 +357,6 @@ def topics():
 @app.route('/clear-topics', methods=['POST'])
 @login_required
 def clear_topics():
-    """Очистить все обычные темы"""
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute('DELETE FROM topics WHERE user_id = ? AND is_morning = 0', (session['user_id'],))
@@ -369,7 +367,6 @@ def clear_topics():
 @app.route('/clear-morning-topics', methods=['POST'])
 @login_required
 def clear_morning_topics():
-    """Очистить все утренние темы"""
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute('DELETE FROM topics WHERE user_id = ? AND is_morning = 1', (session['user_id'],))
@@ -403,7 +400,6 @@ def schedule():
             days_of_week = request.form.get('days_of_week', 'all')
             days = request.form.get('days', 'Ежедневно')
             
-            # УДАЛЯЕМ СТАРОЕ РАСПИСАНИЕ
             cursor.execute('DELETE FROM schedule WHERE user_id = ?', (session['user_id'],))
             
             from datetime import datetime, timedelta
@@ -466,6 +462,17 @@ def reset_schedule():
         
         conn.commit()
     flash('Расписание восстановлено', 'success')
+    return redirect(url_for('schedule'))
+
+@app.route('/clear-schedule', methods=['POST'])
+@login_required
+def clear_schedule():
+    """Удалить всё расписание пользователя"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute('DELETE FROM schedule WHERE user_id = ?', (session['user_id'],))
+        conn.commit()
+    flash('🗑️ Всё расписание удалено', 'info')
     return redirect(url_for('schedule'))
 
 @app.route('/history')
