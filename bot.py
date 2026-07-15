@@ -119,7 +119,8 @@ def process_user(user_id):
         # ===== ОТЛАДКА =====
         print(f"🔍 Пользователь {user_id}:")
         print(f"   Текущее время: {current_time}")
-        print(f"   Расписание: {[item['time'] for item in schedule]}")
+        schedule_times = [item['time'] for item in schedule]
+        print(f"   Расписание: {schedule_times}")
         print(f"   День недели: {now.strftime('%A')}")
         # ==================
         
@@ -141,6 +142,11 @@ def process_user(user_id):
         }
         
         for item in schedule:
+            # Используем индексы вместо .get() (sqlite3.Row)
+            days_of_week = item['days_of_week'] if 'days_of_week' in item.keys() else 'all'
+            start_time = item['start_time'] if 'start_time' in item.keys() else '10:00'
+            end_time = item['end_time'] if 'end_time' in item.keys() else '22:00'
+            
             print(f"   Проверяем время: {item['time']} == {current_time}?")
             
             if item['time'] != current_time:
@@ -148,7 +154,6 @@ def process_user(user_id):
             
             print(f"   ✅ Время совпадает! {item['time']} == {current_time}")
             
-            days_of_week = item.get('days_of_week', 'all')
             allowed_days = days_map.get(days_of_week, ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'])
             print(f"   Дни: {allowed_days}, сегодня: {today}")
             
@@ -156,8 +161,6 @@ def process_user(user_id):
                 print(f"   ❌ Сегодня не разрешён")
                 continue
             
-            start_time = item.get('start_time', '10:00')
-            end_time = item.get('end_time', '22:00')
             if current_time < start_time or current_time > end_time:
                 print(f"   ❌ Время вне диапазона {start_time} - {end_time}")
                 continue
