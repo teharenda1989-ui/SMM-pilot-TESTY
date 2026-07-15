@@ -95,6 +95,7 @@ def process_user(user_id):
         # Получаем все группы пользователя
         groups = get_user_groups(user_id)
         if not groups:
+            print(f"⚠️ Пользователь {user_id}: Нет активных групп")
             return
         
         # Проверяем баланс
@@ -103,6 +104,7 @@ def process_user(user_id):
             cursor.execute('SELECT balance FROM users WHERE id = ?', (user_id,))
             user = cursor.fetchone()
             if not user or user['balance'] < POST_PRICE:
+                print(f"⚠️ Пользователь {user_id}: Недостаточно средств ({user['balance'] if user else 0} < {POST_PRICE})")
                 return
         
         # ===== ВРЕМЯ ПО ЧАСОВОМУ ПОЯСУ ПОЛЬЗОВАТЕЛЯ =====
@@ -111,7 +113,15 @@ def process_user(user_id):
         
         schedule = get_user_schedule(user_id)
         if not schedule:
+            print(f"⚠️ Пользователь {user_id}: Нет расписания")
             return
+        
+        # ===== ОТЛАДКА =====
+        print(f"🔍 Пользователь {user_id}:")
+        print(f"   Текущее время: {current_time}")
+        print(f"   Расписание: {[item['time'] for item in schedule]}")
+        print(f"   День недели: {now.strftime('%A')}")
+        # ==================
         
         # Проверяем дни недели
         weekdays = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
@@ -131,28 +141,40 @@ def process_user(user_id):
         }
         
         for item in schedule:
+            print(f"   Проверяем время: {item['time']} == {current_time}?")
+            
             if item['time'] != current_time:
                 continue
             
+            print(f"   ✅ Время совпадает! {item['time']} == {current_time}")
+            
             days_of_week = item.get('days_of_week', 'all')
             allowed_days = days_map.get(days_of_week, ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'])
+            print(f"   Дни: {allowed_days}, сегодня: {today}")
+            
             if today not in allowed_days:
+                print(f"   ❌ Сегодня не разрешён")
                 continue
             
             start_time = item.get('start_time', '10:00')
             end_time = item.get('end_time', '22:00')
             if current_time < start_time or current_time > end_time:
+                print(f"   ❌ Время вне диапазона {start_time} - {end_time}")
                 continue
+            
+            print(f"   ✅ Все проверки пройдены! Публикуем...")
             
             # ВСЕ ПРОВЕРКИ ПРОЙДЕНЫ → ПУБЛИКУЕМ
             
             topics = get_user_topics(user_id)
             if not topics:
+                print(f"⚠️ Пользователь {user_id}: Нет тем")
                 return
             
             topic = random.choice(topics)
             style = random.choice(['информативный', 'юмористический', 'вовлекающий'])
             
+            print(f"   📝 Генерируем пост на тему: {topic}")
             text = generate_text(topic, style)
             
             if text.startswith("❌"):
@@ -163,10 +185,12 @@ def process_user(user_id):
                         VALUES (?, ?, ?, ?, ?)
                     ''', (user_id, topic, text[:500], 'failed', text))
                     conn.commit()
+                print(f"❌ Пользователь {user_id}: Ошибка генерации: {text}")
                 return
             
             for group in groups:
                 try:
+                    print(f"   📤 Публикуем в группу {group['group_id']}...")
                     post_id = publish_post(
                         group['vk_token'],
                         group['group_id'],
@@ -190,7 +214,7 @@ def process_user(user_id):
                         ''', (user_id, topic, text[:500], status, cost, error, post_id))
                         conn.commit()
                     
-                    print(f"✅ Пользователь {user_id}: Пост опубликован в {current_time}!")
+                    print(f"✅ Пользователь {user_id}: Пост опубликован в {current_time} в группе {group['group_id']}!")
                     
                 except Exception as e:
                     with get_db() as conn:
@@ -202,14 +226,14 @@ def process_user(user_id):
                         conn.commit()
                     print(f"❌ Пользователь {user_id}: Ошибка в группе {group['group_id']} - {e}")
             
-            break
+            break  # Выходим после первой публикации
             
     except Exception as e:
         print(f"⚠️ Ошибка обработки пользователя {user_id}: {e}")
 
 def bot_loop():
     print("=" * 60)
-    print("🤖 SMM Пилот Бот запущен (с выбором часового пояса)!")
+    print("🤖 SMM Пилот Бот запущен (с отладкой)!")
     print("=" * 60)
     print(f"💲 Стоимость поста: {POST_PRICE} ₽")
     print("=" * 60)
@@ -242,6 +266,8 @@ def bot_loop():
                     for user in users:
                         process_user(user['id'])
                     time.sleep(5)
+                else:
+                    print(f"⏰ {current_minute} UTC - Нет активных пользователей")
             
             time.sleep(1)
             
