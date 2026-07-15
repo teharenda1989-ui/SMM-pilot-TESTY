@@ -304,6 +304,8 @@ def test_vk():
             'message': str(e)
         }), 400
 
+# ==================== УПРАВЛЕНИЕ ТЕМАМИ (С МАССОВЫМ ДОБАВЛЕНИЕМ) ====================
+
 @app.route('/topics', methods=['GET', 'POST'])
 @login_required
 def topics():
@@ -311,18 +313,33 @@ def topics():
         cursor = conn.cursor()
         
         if request.method == 'POST':
-            topic = request.form.get('topic')
+            topics_bulk = request.form.get('topics_bulk', '').strip()
             is_morning = request.form.get('is_morning', '0')
             
-            if topic:
-                cursor.execute('''
-                    INSERT INTO topics (user_id, topic, is_morning)
-                    VALUES (?, ?, ?)
-                ''', (session['user_id'], topic, int(is_morning)))
+            if topics_bulk:
+                import re
+                # Разделяем по запятым и переводам строк
+                topics_list = re.split(r'[,\n]+', topics_bulk)
+                topics_list = [t.strip() for t in topics_list if t.strip()]
+                
+                added_count = 0
+                for topic in topics_list:
+                    cursor.execute('''
+                        SELECT id FROM topics 
+                        WHERE user_id = ? AND topic = ? AND is_morning = ?
+                    ''', (session['user_id'], topic, int(is_morning)))
+                    
+                    if not cursor.fetchone():
+                        cursor.execute('''
+                            INSERT INTO topics (user_id, topic, is_morning)
+                            VALUES (?, ?, ?)
+                        ''', (session['user_id'], topic, int(is_morning)))
+                        added_count += 1
+                
                 conn.commit()
-                flash('Тема добавлена!', 'success')
+                flash(f'✅ Добавлено {added_count} новых тем!', 'success')
             else:
-                flash('Введите тему', 'danger')
+                flash('⚠️ Введите хотя бы одну тему', 'warning')
             
             return redirect(url_for('topics'))
         
@@ -337,6 +354,28 @@ def topics():
     return render_template('topics.html', 
                          topics=topics_list, 
                          morning_topics=morning_list)
+
+@app.route('/clear-topics', methods=['POST'])
+@login_required
+def clear_topics():
+    """Очистить все обычные темы"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute('DELETE FROM topics WHERE user_id = ? AND is_morning = 0', (session['user_id'],))
+        conn.commit()
+    flash('🗑️ Все темы удалены', 'info')
+    return redirect(url_for('topics'))
+
+@app.route('/clear-morning-topics', methods=['POST'])
+@login_required
+def clear_morning_topics():
+    """Очистить все утренние темы"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute('DELETE FROM topics WHERE user_id = ? AND is_morning = 1', (session['user_id'],))
+        conn.commit()
+    flash('🗑️ Все утренние темы удалены', 'info')
+    return redirect(url_for('topics'))
 
 @app.route('/delete-topic/<int:topic_id>', methods=['POST'])
 @login_required
