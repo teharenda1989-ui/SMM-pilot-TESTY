@@ -92,13 +92,11 @@ def publish_post(vk_token, group_id, text):
 
 def process_user(user_id):
     try:
-        # Получаем все группы пользователя
         groups = get_user_groups(user_id)
         if not groups:
             print(f"⚠️ Пользователь {user_id}: Нет активных групп")
             return
         
-        # Проверяем баланс
         with get_db() as conn:
             cursor = conn.cursor()
             cursor.execute('SELECT balance FROM users WHERE id = ?', (user_id,))
@@ -110,19 +108,16 @@ def process_user(user_id):
         # ===== ВРЕМЯ ПО ЧАСОВОМУ ПОЯСУ ПОЛЬЗОВАТЕЛЯ =====
         now = get_user_time(user_id)
         current_time = now.strftime("%H:%M")
+        current_minute = now.minute
         
         schedule = get_user_schedule(user_id)
         if not schedule:
             print(f"⚠️ Пользователь {user_id}: Нет расписания")
             return
         
-        # ===== ОТЛАДКА =====
         print(f"🔍 Пользователь {user_id}:")
         print(f"   Текущее время: {current_time}")
-        schedule_times = [item['time'] for item in schedule]
-        print(f"   Расписание: {schedule_times}")
-        print(f"   День недели: {now.strftime('%A')}")
-        # ==================
+        print(f"   Минута: {current_minute}")
         
         # Проверяем дни недели
         weekdays = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
@@ -142,23 +137,23 @@ def process_user(user_id):
         }
         
         for item in schedule:
-            # Используем индексы вместо .get() (sqlite3.Row)
+            # === ПРОВЕРЯЕМ ТОЛЬКО МИНУТЫ (без учёта часа) ===
+            schedule_hour, schedule_minute = map(int, item['time'].split(':'))
+            
+            # Если минута не совпадает — пропускаем
+            if current_minute != schedule_minute:
+                continue
+            
+            print(f"   ✅ Время совпадает! {item['time']} ≈ {current_time}")
+            
             days_of_week = item['days_of_week'] if 'days_of_week' in item.keys() else 'all'
             start_time = item['start_time'] if 'start_time' in item.keys() else '10:00'
             end_time = item['end_time'] if 'end_time' in item.keys() else '22:00'
             
-            print(f"   Проверяем время: {item['time']} == {current_time}?")
-            
-            if item['time'] != current_time:
-                continue
-            
-            print(f"   ✅ Время совпадает! {item['time']} == {current_time}")
-            
             allowed_days = days_map.get(days_of_week, ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'])
-            print(f"   Дни: {allowed_days}, сегодня: {today}")
             
             if today not in allowed_days:
-                print(f"   ❌ Сегодня не разрешён")
+                print(f"   ❌ Сегодня {today} не разрешён")
                 continue
             
             if current_time < start_time or current_time > end_time:
