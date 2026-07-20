@@ -18,6 +18,9 @@ YANDEX_FOLDER_ID = Config.YANDEX_FOLDER_ID
 YANDEX_API_KEY = Config.YANDEX_API_KEY
 POST_PRICE = Config.POST_PRICE
 
+# Часовой пояс Новосибирска (для сервера)
+NOVOSIBIRSK_TZ = pytz.timezone('Asia/Novosibirsk')
+
 def get_user_time(user_id):
     """Получить текущее время пользователя с его часовым поясом"""
     timezone_str = get_user_timezone(user_id)
@@ -25,7 +28,7 @@ def get_user_time(user_id):
         tz = pytz.timezone(timezone_str)
         return datetime.now(tz)
     except:
-        return datetime.now(timezone.utc)
+        return datetime.now(NOVOSIBIRSK_TZ)
 
 def generate_text(topic, style='информативный'):
     try:
@@ -231,21 +234,25 @@ def process_user(user_id):
 
 def bot_loop():
     print("=" * 60)
-    print("🤖 SMM Пилот Бот запущен (с отладкой)!")
+    print("🤖 SMM Пилот Бот запущен!")
     print("=" * 60)
     print(f"💲 Стоимость поста: {POST_PRICE} ₽")
+    print(f"🕐 Часовой пояс: Новосибирск (UTC+7)")
     print("=" * 60)
     
     last_minute = ""
     
     while True:
         try:
-            now_utc = datetime.now(timezone.utc)
-            current_minute = now_utc.strftime("%Y-%m-%d %H:%M")
+            # Используем время Новосибирска (UTC+7)
+            now = datetime.now(NOVOSIBIRSK_TZ)
+            current_minute = now.strftime("%Y-%m-%d %H:%M")
+            current_hour = now.hour
             
             if current_minute != last_minute:
                 last_minute = current_minute
                 
+                # Проверяем, есть ли активные пользователи
                 with get_db() as conn:
                     cursor = conn.cursor()
                     cursor.execute('''
@@ -260,12 +267,14 @@ def bot_loop():
                     users = cursor.fetchall()
                 
                 if users:
-                    print(f"⏰ {current_minute} UTC - Обработка {len(users)} пользователей...")
+                    print(f"⏰ {current_minute} (Новосибирск) - Обработка {len(users)} пользователей...")
                     for user in users:
                         process_user(user['id'])
                     time.sleep(5)
                 else:
-                    print(f"⏰ {current_minute} UTC - Нет активных пользователей")
+                    # Выводим только если есть пользователи, но не каждую минуту
+                    if len(users) == 0 and int(current_minute[-2:]) % 5 == 0:
+                        print(f"⏰ {current_minute} (Новосибирск) - Нет активных пользователей")
             
             time.sleep(1)
             
