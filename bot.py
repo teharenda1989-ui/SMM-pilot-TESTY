@@ -18,7 +18,7 @@ YANDEX_FOLDER_ID = Config.YANDEX_FOLDER_ID
 YANDEX_API_KEY = Config.YANDEX_API_KEY
 POST_PRICE = Config.POST_PRICE
 
-# Часовой пояс Новосибирска (для сервера)
+# Часовой пояс Новосибирска
 NOVOSIBIRSK_TZ = pytz.timezone('Asia/Novosibirsk')
 
 def get_user_time(user_id):
@@ -105,10 +105,9 @@ def process_user(user_id):
             cursor.execute('SELECT balance FROM users WHERE id = ?', (user_id,))
             user = cursor.fetchone()
             if not user or user['balance'] < POST_PRICE:
-                print(f"⚠️ Пользователь {user_id}: Недостаточно средств ({user['balance'] if user else 0} < {POST_PRICE})")
+                print(f"⚠️ Пользователь {user_id}: Недостаточно средств")
                 return
         
-        # ===== ВРЕМЯ ПО ЧАСОВОМУ ПОЯСУ ПОЛЬЗОВАТЕЛЯ =====
         now = get_user_time(user_id)
         current_time = now.strftime("%H:%M")
         current_minute = now.minute
@@ -122,7 +121,6 @@ def process_user(user_id):
         print(f"   Текущее время: {current_time}")
         print(f"   Минута: {current_minute}")
         
-        # Проверяем дни недели
         weekdays = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
         today = weekdays[now.weekday()]
         
@@ -140,10 +138,8 @@ def process_user(user_id):
         }
         
         for item in schedule:
-            # === ПРОВЕРЯЕМ ТОЛЬКО МИНУТЫ (без учёта часа) ===
             schedule_hour, schedule_minute = map(int, item['time'].split(':'))
             
-            # Если минута не совпадает — пропускаем
             if current_minute != schedule_minute:
                 continue
             
@@ -164,8 +160,6 @@ def process_user(user_id):
                 continue
             
             print(f"   ✅ Все проверки пройдены! Публикуем...")
-            
-            # ВСЕ ПРОВЕРКИ ПРОЙДЕНЫ → ПУБЛИКУЕМ
             
             topics = get_user_topics(user_id)
             if not topics:
@@ -189,43 +183,44 @@ def process_user(user_id):
                 print(f"❌ Пользователь {user_id}: Ошибка генерации: {text}")
                 return
             
-            for group in groups:
-                try:
-                    print(f"   📤 Публикуем в группу {group['group_id']}...")
-                    post_id = publish_post(
-                        group['vk_token'],
-                        group['group_id'],
-                        text
-                    )
-                    
-                    if deduct_post_cost(user_id):
-                        status = 'published'
-                        cost = POST_PRICE
-                        error = None
-                    else:
-                        status = 'insufficient_balance'
-                        cost = 0
-                        error = 'Недостаточно средств'
-                    
-                    with get_db() as conn:
-                        cursor = conn.cursor()
-                        cursor.execute('''
-                            INSERT INTO posts_history (user_id, topic, text, status, cost, error, post_id)
-                            VALUES (?, ?, ?, ?, ?, ?, ?)
-                        ''', (user_id, topic, text[:500], status, cost, error, post_id))
-                        conn.commit()
-                    
-                    print(f"✅ Пользователь {user_id}: Пост опубликован в {current_time} в группе {group['group_id']}!")
-                    
-                except Exception as e:
-                    with get_db() as conn:
-                        cursor = conn.cursor()
-                        cursor.execute('''
-                            INSERT INTO posts_history (user_id, topic, text, status, error)
-                            VALUES (?, ?, ?, ?, ?)
-                        ''', (user_id, topic, text[:500], 'failed', str(e)))
-                        conn.commit()
-                    print(f"❌ Пользователь {user_id}: Ошибка в группе {group['group_id']} - {e}")
+            # === ПУБЛИКУЕМ ТОЛЬКО В ПЕРВУЮ ГРУППУ (ЧТОБЫ НЕ БЫЛО ДУБЛЕЙ) ===
+            group = groups[0]  # Берём только первую группу
+            try:
+                print(f"   📤 Публикуем в группу {group['group_id']}...")
+                post_id = publish_post(
+                    group['vk_token'],
+                    group['group_id'],
+                    text
+                )
+                
+                if deduct_post_cost(user_id):
+                    status = 'published'
+                    cost = POST_PRICE
+                    error = None
+                else:
+                    status = 'insufficient_balance'
+                    cost = 0
+                    error = 'Недостаточно средств'
+                
+                with get_db() as conn:
+                    cursor = conn.cursor()
+                    cursor.execute('''
+                        INSERT INTO posts_history (user_id, topic, text, status, cost, error, post_id)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                    ''', (user_id, topic, text[:500], status, cost, error, post_id))
+                    conn.commit()
+                
+                print(f"✅ Пользователь {user_id}: Пост опубликован в {current_time} в группе {group['group_id']}!")
+                
+            except Exception as e:
+                with get_db() as conn:
+                    cursor = conn.cursor()
+                    cursor.execute('''
+                        INSERT INTO posts_history (user_id, topic, text, status, error)
+                        VALUES (?, ?, ?, ?, ?)
+                    ''', (user_id, topic, text[:500], 'failed', str(e)))
+                    conn.commit()
+                print(f"❌ Пользователь {user_id}: Ошибка в группе {group['group_id']} - {e}")
             
             break  # Выходим после первой публикации
             
@@ -244,15 +239,12 @@ def bot_loop():
     
     while True:
         try:
-            # Используем время Новосибирска (UTC+7)
             now = datetime.now(NOVOSIBIRSK_TZ)
             current_minute = now.strftime("%Y-%m-%d %H:%M")
-            current_hour = now.hour
             
             if current_minute != last_minute:
                 last_minute = current_minute
                 
-                # Проверяем, есть ли активные пользователи
                 with get_db() as conn:
                     cursor = conn.cursor()
                     cursor.execute('''
@@ -272,8 +264,7 @@ def bot_loop():
                         process_user(user['id'])
                     time.sleep(5)
                 else:
-                    # Выводим только если есть пользователи, но не каждую минуту
-                    if len(users) == 0 and int(current_minute[-2:]) % 5 == 0:
+                    if int(current_minute[-2:]) % 5 == 0:
                         print(f"⏰ {current_minute} (Новосибирск) - Нет активных пользователей")
             
             time.sleep(1)
