@@ -9,9 +9,9 @@ class Config:
     # База данных
     DATABASE_PATH = 'smm_bot.db'
     
-    # Yandex GPT
-    YANDEX_FOLDER_ID = os.getenv('YANDEX_FOLDER_ID')
-    YANDEX_API_KEY = os.getenv('YANDEX_API_KEY')
+    # Yandex GPT — с очисткой от переносов строк
+    YANDEX_FOLDER_ID = os.getenv('YANDEX_FOLDER_ID', '').strip()
+    YANDEX_API_KEY = os.getenv('YANDEX_API_KEY', '').strip().replace('\r', '').replace('\n', '')
     
     # Цена за пост
     POST_PRICE = 0.50
