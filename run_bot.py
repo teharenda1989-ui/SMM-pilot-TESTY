@@ -1,1 +1,1 @@
-echo "import bot; bot.start_bot(); import time; time.sleep(999999)" > run_bot.py
+printf 'import bot\nbot.start_bot()\nimport time\ntime.sleep(999999)\n' > run_bot.py
