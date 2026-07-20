@@ -6,7 +6,7 @@ import sys
 
 from config import Config
 from database import init_db, get_db
-from bot import start_bot
+# from bot import start_bot   # <--- ЗАКОММЕНТИРОВАНО! Бот больше не запускается отсюда
 
 print("=" * 60)
 print("🚀 ЗАПУСК APP.PY")
@@ -19,8 +19,10 @@ app.config['PERMANENT_SESSION_LIFETIME'] = 86400
 # Инициализация БД
 init_db()
 
-# Запуск бота
-start_bot()
+# === БОТ БОЛЬШЕ НЕ ЗАПУСКАЕТСЯ ЗДЕСЬ ===
+# Бот запускается отдельно через консоль командой:
+# python3 -c "import bot; bot.start_bot(); import time; time.sleep(999999)"
+# start_bot()   # <--- ЗАКОММЕНТИРОВАНО
 
 # ==================== ДЕКОРАТОРЫ ====================
 
@@ -256,7 +258,6 @@ def settings():
                 flash(f'Ошибка подключения к VK: {str(e)}', 'danger')
                 is_configured = 0
             
-            # Проверяем, есть ли уже настройки у пользователя
             cursor.execute('SELECT id FROM vk_settings WHERE user_id = ?', (session['user_id'],))
             existing = cursor.fetchone()
             
@@ -467,7 +468,6 @@ def reset_schedule():
 @app.route('/clear-schedule', methods=['POST'])
 @login_required
 def clear_schedule():
-    """Удалить всё расписание пользователя"""
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute('DELETE FROM schedule WHERE user_id = ?', (session['user_id'],))
