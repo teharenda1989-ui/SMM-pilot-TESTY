@@ -1,0 +1,1 @@
+echo "import bot; bot.start_bot(); import time; time.sleep(999999)" > run_bot.py
