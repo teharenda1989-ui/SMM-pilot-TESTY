@@ -183,9 +183,10 @@ def process_user(user_id):
                 print(f"❌ Пользователь {user_id}: Ошибка генерации: {text}")
                 return
             
-            # === ПУБЛИКУЕМ ТОЛЬКО В ПЕРВУЮ ГРУППУ (ЧТОБЫ НЕ БЫЛО ДУБЛЕЙ) ===
-            group = groups[0]  # Берём только первую группу
+            # ===== ПУБЛИКУЕМ ТОЛЬКО ОДИН РАЗ =====
             try:
+                # Берём только ПЕРВУЮ группу
+                group = groups[0]
                 print(f"   📤 Публикуем в группу {group['group_id']}...")
                 post_id = publish_post(
                     group['vk_token'],
@@ -222,7 +223,7 @@ def process_user(user_id):
                     conn.commit()
                 print(f"❌ Пользователь {user_id}: Ошибка в группе {group['group_id']} - {e}")
             
-            break  # Выходим после первой публикации
+            break  # Выходим после публикации
             
     except Exception as e:
         print(f"⚠️ Ошибка обработки пользователя {user_id}: {e}")
