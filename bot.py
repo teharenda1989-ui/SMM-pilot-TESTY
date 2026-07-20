@@ -147,7 +147,7 @@ def process_user(user_id):
             
             days_of_week = item['days_of_week'] if 'days_of_week' in item.keys() else 'all'
             start_time = item['start_time'] if 'start_time' in item.keys() else '10:00'
-            end_time = item['end_time'] if 'end_time' in item.keys() else '22:00'
+            end_time = item['end_time'] if 'end_time' in item.keys() else '23:59'
             
             allowed_days = days_map.get(days_of_week, ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'])
             
@@ -183,11 +183,11 @@ def process_user(user_id):
                 print(f"❌ Пользователь {user_id}: Ошибка генерации: {text}")
                 return
             
-            # ===== ПУБЛИКУЕМ ТОЛЬКО ОДИН РАЗ =====
+            # === ТОЛЬКО ОДНА ПУБЛИКАЦИЯ (БЕЗ ДУБЛЕЙ) ===
             try:
-                # Берём только ПЕРВУЮ группу
                 group = groups[0]
                 print(f"   📤 Публикуем в группу {group['group_id']}...")
+                
                 post_id = publish_post(
                     group['vk_token'],
                     group['group_id'],
@@ -223,7 +223,8 @@ def process_user(user_id):
                     conn.commit()
                 print(f"❌ Пользователь {user_id}: Ошибка в группе {group['group_id']} - {e}")
             
-            break  # Выходим после публикации
+            # === ВЫХОДИМ СРАЗУ ПОСЛЕ ПУБЛИКАЦИИ ===
+            break
             
     except Exception as e:
         print(f"⚠️ Ошибка обработки пользователя {user_id}: {e}")
