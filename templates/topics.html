@@ -7,21 +7,22 @@
 
 <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 24px;">
     <!-- Список тем -->
-    <div class="card">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-            <h3>📚 Основные темы ({{ topics|length }})</h3>
-            <form method="POST" action="{{ url_for('clear_topics') }}" 
-                  onsubmit="return confirm('Удалить ВСЕ темы? Это действие необратимо!')">
-                <button type="submit" class="btn btn-danger" style="padding: 4px 16px; font-size: 12px;">
-                    🗑️ Очистить все
-                </button>
-            </form>
-        </div>
-        
-        <div style="max-height: 500px; overflow-y: auto;">
-            {% for topic in topics %}
+    <div>
+        <!-- Общие темы -->
+        <div class="card" style="margin-bottom: 16px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <h3>📚 Общие темы ({{ common_topics|length }})</h3>
+                <form method="POST" action="{{ url_for('clear_topics') }}" 
+                      onsubmit="return confirm('Удалить ВСЕ общие темы?')">
+                    <input type="hidden" name="group_id" value="">
+                    <button type="submit" class="btn btn-danger" style="padding: 4px 16px; font-size: 12px;">
+                        🗑️ Очистить все
+                    </button>
+                </form>
+            </div>
+            {% for topic in common_topics %}
                 <div style="display: flex; justify-content: space-between; align-items: center; 
-                            padding: 8px 0; border-bottom: 1px solid var(--border-color);">
+                            padding: 6px 0; border-bottom: 1px solid var(--border-color);">
                     <span>{{ loop.index }}. {{ topic.topic }}</span>
                     <form method="POST" action="{{ url_for('delete_topic', topic_id=topic.id) }}" 
                           style="display: inline;" 
@@ -32,11 +33,44 @@
                     </form>
                 </div>
             {% else %}
-                <p style="color: var(--text-secondary); text-align: center; padding: 20px 0;">
-                    Нет тем. Добавьте первую!
+                <p style="color: var(--text-secondary); text-align: center; padding: 10px 0;">
+                    Нет общих тем
                 </p>
             {% endfor %}
         </div>
+        
+        <!-- Темы по группам -->
+        {% for group in groups %}
+            <div class="card" style="margin-bottom: 16px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                    <h3>📱 {{ group.group_name or 'Группа ' + group.group_id }} ({{ topics_by_group[group.id]|length }})</h3>
+                    <form method="POST" action="{{ url_for('clear_topics') }}" 
+                          onsubmit="return confirm('Удалить ВСЕ темы для этой группы?')">
+                        <input type="hidden" name="group_id" value="{{ group.id }}">
+                        <button type="submit" class="btn btn-danger" style="padding: 4px 16px; font-size: 12px;">
+                            🗑️ Очистить
+                        </button>
+                    </form>
+                </div>
+                {% for topic in topics_by_group[group.id] %}
+                    <div style="display: flex; justify-content: space-between; align-items: center; 
+                                padding: 6px 0; border-bottom: 1px solid var(--border-color);">
+                        <span>{{ loop.index }}. {{ topic.topic }}</span>
+                        <form method="POST" action="{{ url_for('delete_topic', topic_id=topic.id) }}" 
+                              style="display: inline;" 
+                              onsubmit="return confirm('Удалить тему?')">
+                            <button type="submit" class="btn btn-danger" style="padding: 4px 12px; font-size: 12px;">
+                                🗑️
+                            </button>
+                        </form>
+                    </div>
+                {% else %}
+                    <p style="color: var(--text-secondary); text-align: center; padding: 10px 0;">
+                        Нет тем для этой группы
+                    </p>
+                {% endfor %}
+            </div>
+        {% endfor %}
     </div>
     
     <!-- Добавление тем -->
@@ -44,6 +78,16 @@
         <h3>➕ Добавить темы</h3>
         
         <form method="POST" action="{{ url_for('topics') }}">
+            <div class="form-group">
+                <label class="form-label">📱 Для какой группы?</label>
+                <select name="group_id" class="form-control">
+                    <option value="">Общие (для всех групп)</option>
+                    {% for group in groups %}
+                        <option value="{{ group.id }}">{{ group.group_name or 'Группа ' + group.group_id }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
             <div class="form-group">
                 <label class="form-label">📝 Введите темы (каждая с новой строки или через запятую)</label>
                 <textarea name="topics_bulk" class="form-control" rows="8" 
@@ -70,12 +114,10 @@
         
         <div style="margin-top: 12px; padding: 12px; background: var(--bg-tertiary); border-radius: 6px;">
             <p style="color: var(--text-secondary); font-size: 13px;">
-                💡 Примеры тем:
+                💡 Можно добавить темы для каждой группы отдельно
             </p>
-            <p style="color: var(--text-secondary); font-size: 12px; line-height: 1.6;">
-                Как открыть ИП в России: пошаговая инструкция,<br>
-                Самозанятость или ИП: что выбрать в 2026,<br>
-                Как получить кредит для бизнеса в России
+            <p style="color: var(--text-secondary); font-size: 13px;">
+                💡 Общие темы применяются ко всем группам
             </p>
         </div>
     </div>
