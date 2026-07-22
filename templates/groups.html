@@ -39,9 +39,15 @@
                             {% else %}
                                 🔴 Остановлена
                             {% endif %}
+                            | 🕐 {{ group.timezone or 'Asia/Novosibirsk' }}
                         </span>
+                        <br>
+                        <button onclick="testGroupConnection({{ group.id }})" class="btn btn-outline" style="padding: 2px 12px; font-size: 12px; margin-top: 4px;">
+                            🔍 Проверить соединение
+                        </button>
+                        <span id="test-result-{{ group.id }}" style="font-size: 12px; margin-left: 8px;"></span>
                     </div>
-                    <div style="display: flex; gap: 8px;">
+                    <div style="display: flex; gap: 8px; flex-wrap: wrap;">
                         <form method="POST" style="display: inline;">
                             <input type="hidden" name="action" value="toggle">
                             <input type="hidden" name="group_id_db" value="{{ group.id }}">
@@ -100,6 +106,24 @@
                        placeholder="Моя группа">
             </div>
             
+            <div class="form-group">
+                <label class="form-label">🕐 Часовой пояс группы</label>
+                <select name="timezone" class="form-control">
+                    <option value="UTC">UTC</option>
+                    <option value="Europe/Moscow">Москва (UTC+3)</option>
+                    <option value="Europe/Volgograd">Волгоград (UTC+4)</option>
+                    <option value="Asia/Yekaterinburg">Екатеринбург (UTC+5)</option>
+                    <option value="Asia/Omsk">Омск (UTC+6)</option>
+                    <option value="Asia/Novosibirsk" selected>Новосибирск (UTC+7)</option>
+                    <option value="Asia/Krasnoyarsk">Красноярск (UTC+7)</option>
+                    <option value="Asia/Irkutsk">Иркутск (UTC+8)</option>
+                    <option value="Asia/Yakutsk">Якутск (UTC+9)</option>
+                    <option value="Asia/Vladivostok">Владивосток (UTC+10)</option>
+                    <option value="Asia/Magadan">Магадан (UTC+11)</option>
+                    <option value="Asia/Kamchatka">Камчатка (UTC+12)</option>
+                </select>
+            </div>
+            
             <button type="submit" class="btn btn-primary" style="width: 100%;">
                 ➕ Добавить группу
             </button>
@@ -110,9 +134,33 @@
                 💡 Вы можете добавить неограниченное количество групп
             </p>
             <p style="color: var(--text-secondary); font-size: 13px;">
-                💡 Для каждой группы нужен свой токен VK
+                💡 Для каждой группы можно настроить свои темы и расписание
             </p>
         </div>
     </div>
 </div>
+
+<script>
+function testGroupConnection(groupId) {
+    const result = document.getElementById('test-result-' + groupId);
+    result.innerHTML = '⏳ Проверка...';
+    result.style.color = 'var(--warning)';
+    
+    fetch('/api/test-vk-group/' + groupId)
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                result.innerHTML = '✅ ' + data.message;
+                result.style.color = 'var(--success)';
+            } else {
+                result.innerHTML = '❌ ' + data.message;
+                result.style.color = 'var(--danger)';
+            }
+        })
+        .catch(() => {
+            result.innerHTML = '❌ Ошибка соединения';
+            result.style.color = 'var(--danger)';
+        });
+}
+</script>
 {% endblock %}
