@@ -95,11 +95,14 @@
             <div class="form-group">
                 <label class="form-label">📱 Для какой группы?</label>
                 <select name="group_id" class="form-control">
-                    <option value="">Общее (для всех групп)</option>
+                    <option value="">🌍 Общее (для всех групп)</option>
                     {% for group in groups %}
-                        <option value="{{ group.id }}">{{ group.group_name or 'Группа ' + group.group_id }}</option>
+                        <option value="{{ group.id }}">📱 {{ group.group_name or 'Группа ' + group.group_id }}</option>
                     {% endfor %}
                 </select>
+                <small style="color: var(--text-secondary);">
+                    💡 Выберите группу, для которой настраиваете расписание
+                </small>
             </div>
             
             <div class="form-group">
@@ -138,22 +141,6 @@
                     <option value="friday">Пятница</option>
                     <option value="saturday">Суббота</option>
                     <option value="sunday">Воскресенье</option>
-                </select>
-            </div>
-            
-            <div class="form-group">
-                <label class="form-label">📝 Дополнительно</label>
-                <select name="days" class="form-control">
-                    <option value="Ежедневно">Ежедневно</option>
-                    <option value="Пн-Пт">Пн-Пт</option>
-                    <option value="Сб-Вс">Сб-Вс</option>
-                    <option value="Пн">Понедельник</option>
-                    <option value="Вт">Вторник</option>
-                    <option value="Ср">Среда</option>
-                    <option value="Чт">Четверг</option>
-                    <option value="Пт">Пятница</option>
-                    <option value="Сб">Суббота</option>
-                    <option value="Вс">Воскресенье</option>
                 </select>
             </div>
             
