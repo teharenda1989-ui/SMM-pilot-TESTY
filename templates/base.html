@@ -18,9 +18,9 @@
                     <span style="color: var(--text-secondary); font-size: 14px;">
                         👤 {{ session.get('email', '') }}
                     </span>
-                    <span style="color: var(--success); font-weight: 600;">
+                    <a href="{{ url_for('balance') }}" class="btn btn-success" style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 16px; border-radius: 20px; font-size: 14px;">
                         💰 {{ "%.2f"|format(session.get('balance', 0)) }} ₽
-                    </span>
+                    </a>
                     <a href="{{ url_for('dashboard') }}" class="nav-link">📊 Кабинет</a>
                     <a href="{{ url_for('logout') }}" class="btn btn-outline">Выйти</a>
                 {% else %}
