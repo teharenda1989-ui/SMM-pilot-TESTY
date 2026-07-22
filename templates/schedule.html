@@ -7,33 +7,28 @@
 
 <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 24px;">
     <!-- Список расписания -->
-    <div class="card">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-            <h3>📅 Текущее расписание ({{ schedule|length }})</h3>
-            <form method="POST" action="{{ url_for('clear_schedule') }}" 
-                  onsubmit="return confirm('Удалить ВСЁ расписание? Это действие необратимо!')">
-                <button type="submit" class="btn btn-danger" style="padding: 4px 16px; font-size: 12px;">
-                    🗑️ Очистить всё
-                </button>
-            </form>
-        </div>
-        
-        <div style="max-height: 500px; overflow-y: auto;">
-            {% for item in schedule %}
+    <div>
+        <!-- Общее расписание -->
+        <div class="card" style="margin-bottom: 16px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <h3>📅 Общее расписание ({{ common_schedule|length }})</h3>
+                <form method="POST" action="{{ url_for('clear_schedule') }}" 
+                      onsubmit="return confirm('Удалить ВСЁ общее расписание?')">
+                    <input type="hidden" name="group_id" value="">
+                    <button type="submit" class="btn btn-danger" style="padding: 4px 16px; font-size: 12px;">
+                        🗑️ Очистить всё
+                    </button>
+                </form>
+            </div>
+            {% for item in common_schedule %}
                 <div style="display: flex; justify-content: space-between; align-items: center; 
-                            padding: 10px 0; border-bottom: 1px solid var(--border-color);">
+                            padding: 8px 0; border-bottom: 1px solid var(--border-color);">
                     <div>
-                        <span style="font-size: 18px; font-weight: 600; color: var(--accent);">
+                        <span style="font-size: 16px; font-weight: 600; color: var(--accent);">
                             {{ item.time }}
                         </span>
-                        <span style="color: var(--text-secondary); margin-left: 12px;">
+                        <span style="color: var(--text-secondary); margin-left: 12px; font-size: 13px;">
                             {{ item.days }}
-                        </span>
-                        <br>
-                        <span style="font-size: 12px; color: var(--text-secondary);">
-                            ⏰ {{ item.start_time or '10:00' }} → {{ item.end_time or '22:00' }} 
-                            | Интервал: {{ item.interval_minutes or 30 }} мин
-                            | {{ item.days_of_week or 'Ежедневно' }}
                         </span>
                     </div>
                     <form method="POST" action="{{ url_for('delete_schedule', schedule_id=item.id) }}" 
@@ -45,11 +40,51 @@
                     </form>
                 </div>
             {% else %}
-                <p style="color: var(--text-secondary); text-align: center; padding: 20px 0;">
-                    Нет расписания. Добавьте время!
+                <p style="color: var(--text-secondary); text-align: center; padding: 10px 0;">
+                    Нет общего расписания
                 </p>
             {% endfor %}
         </div>
+        
+        <!-- Расписание по группам -->
+        {% for group in groups %}
+            <div class="card" style="margin-bottom: 16px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                    <h3>📱 {{ group.group_name or 'Группа ' + group.group_id }} ({{ schedule_by_group[group.id]|length }})</h3>
+                    <form method="POST" action="{{ url_for('clear_schedule') }}" 
+                          onsubmit="return confirm('Удалить ВСЁ расписание для этой группы?')">
+                        <input type="hidden" name="group_id" value="{{ group.id }}">
+                        <button type="submit" class="btn btn-danger" style="padding: 4px 16px; font-size: 12px;">
+                            🗑️ Очистить всё
+                        </button>
+                    </form>
+                </div>
+                {% for item in schedule_by_group[group.id] %}
+                    <div style="display: flex; justify-content: space-between; align-items: center; 
+                                padding: 8px 0; border-bottom: 1px solid var(--border-color);">
+                        <div>
+                            <span style="font-size: 16px; font-weight: 600; color: var(--accent);">
+                                {{ item.time }}
+                            </span>
+                            <span style="color: var(--text-secondary); margin-left: 12px; font-size: 13px;">
+                                {{ item.days }}
+                            </span>
+                        </div>
+                        <form method="POST" action="{{ url_for('delete_schedule', schedule_id=item.id) }}" 
+                              style="display: inline;" 
+                              onsubmit="return confirm('Удалить время?')">
+                            <button type="submit" class="btn btn-danger" style="padding: 4px 12px; font-size: 12px;">
+                                🗑️
+                            </button>
+                        </form>
+                    </div>
+                {% else %}
+                    <p style="color: var(--text-secondary); text-align: center; padding: 10px 0;">
+                        Нет расписания для этой группы
+                    </p>
+                {% endfor %}
+            </div>
+        {% endfor %}
     </div>
     
     <!-- Добавление расписания -->
@@ -57,6 +92,16 @@
         <h3>➕ Добавить расписание</h3>
         
         <form method="POST" action="{{ url_for('schedule') }}">
+            <div class="form-group">
+                <label class="form-label">📱 Для какой группы?</label>
+                <select name="group_id" class="form-control">
+                    <option value="">Общее (для всех групп)</option>
+                    {% for group in groups %}
+                        <option value="{{ group.id }}">{{ group.group_name or 'Группа ' + group.group_id }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
             <div class="form-group">
                 <label class="form-label">⏰ Время начала</label>
                 <input type="time" name="start_time" class="form-control" value="10:00" required>
@@ -112,15 +157,17 @@
                 </select>
             </div>
             
-            <button type="submit" class="btn btn-primary" style="width: 100%;">➕ Добавить расписание</button>
+            <button type="submit" class="btn btn-primary" style="width: 100%;">
+                ➕ Добавить расписание
+            </button>
         </form>
         
         <div style="margin-top: 16px; padding: 12px; background: var(--bg-tertiary); border-radius: 6px;">
             <p style="color: var(--text-secondary); font-size: 13px;">
-                💡 Пример: с 10:00 до 22:00, каждые 30 минут, ежедневно
+                💡 Можно добавить разное расписание для каждой группы
             </p>
             <p style="color: var(--text-secondary); font-size: 13px;">
-                💡 Можно выбрать только будни или выходные
+                💡 Общее расписание применяется ко всем группам
             </p>
         </div>
     </div>
