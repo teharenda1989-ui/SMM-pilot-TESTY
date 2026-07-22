@@ -6,12 +6,7 @@
 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 12px;">
     <h1 style="font-size: 28px;">📊 Личный кабинет</h1>
     <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
-        <span style="color: var(--text-secondary);">👤 {{ session.get('email', '') }}</span>
-        <div class="balance-display">
-            <span>💰 Баланс:</span>
-            <span class="balance-amount">{{ "%.2f"|format(user.balance) }} ₽</span>
-        </div>
-        <a href="{{ url_for('balance') }}" class="btn btn-success">Пополнить</a>
+        <span style="color: var(--text-secondary);">🕐 {{ user.timezone or 'Asia/Novosibirsk' }}</span>
     </div>
 </div>
 
@@ -35,11 +30,10 @@
 </div>
 
 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin: 24px 0;">
-    <a href="{{ url_for('settings') }}" class="btn btn-primary" style="text-align: center;">⚙️ VK</a>
-    <a href="{{ url_for('groups') }}" class="btn btn-primary" style="text-align: center;">📱 Группы</a>
+    <a href="{{ url_for('groups') }}" class="btn btn-primary" style="text-align: center;">📱 Группы VK</a>
     <a href="{{ url_for('topics') }}" class="btn btn-primary" style="text-align: center;">📝 Темы</a>
     <a href="{{ url_for('schedule') }}" class="btn btn-primary" style="text-align: center;">⏰ Расписание</a>
-    <a href="{{ url_for('timezone_settings') }}" class="btn btn-primary" style="text-align: center;">🕐 Время</a>
+    <a href="{{ url_for('timezone_settings') }}" class="btn btn-primary" style="text-align: center;">🕐 Часовой пояс</a>
     <a href="{{ url_for('history') }}" class="btn btn-primary" style="text-align: center;">📜 История</a>
 </div>
 
@@ -50,7 +44,7 @@
         <p style="color: var(--text-secondary);">Группа ID: {{ vk_settings.group_id }}</p>
     {% else %}
         <p style="color: var(--warning);">⚠️ ВК не настроен</p>
-        <a href="{{ url_for('settings') }}" class="btn btn-primary" style="margin-top: 12px;">Настроить сейчас</a>
+        <a href="{{ url_for('groups') }}" class="btn btn-primary" style="margin-top: 12px;">Настроить сейчас</a>
     {% endif %}
 </div>
 
