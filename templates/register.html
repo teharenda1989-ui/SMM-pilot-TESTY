@@ -23,6 +23,28 @@
                 <input type="password" name="password_confirm" class="form-control" placeholder="Повторите пароль" required>
             </div>
             
+            <div class="form-group">
+                <label class="form-label">🕐 Ваш часовой пояс</label>
+                <select name="timezone" class="form-control" id="timezone-select">
+                    <option value="UTC">UTC</option>
+                    <option value="Europe/Moscow">Москва (UTC+3)</option>
+                    <option value="Europe/Volgograd">Волгоград (UTC+4)</option>
+                    <option value="Asia/Yekaterinburg">Екатеринбург (UTC+5)</option>
+                    <option value="Asia/Omsk">Омск (UTC+6)</option>
+                    <option value="Asia/Novosibirsk" {% if detected_timezone == 'Asia/Novosibirsk' %}selected{% endif %}>Новосибирск (UTC+7)</option>
+                    <option value="Asia/Krasnoyarsk" {% if detected_timezone == 'Asia/Krasnoyarsk' %}selected{% endif %}>Красноярск (UTC+7)</option>
+                    <option value="Asia/Irkutsk" {% if detected_timezone == 'Asia/Irkutsk' %}selected{% endif %}>Иркутск (UTC+8)</option>
+                    <option value="Asia/Yakutsk" {% if detected_timezone == 'Asia/Yakutsk' %}selected{% endif %}>Якутск (UTC+9)</option>
+                    <option value="Asia/Vladivostok" {% if detected_timezone == 'Asia/Vladivostok' %}selected{% endif %}>Владивосток (UTC+10)</option>
+                    <option value="Asia/Magadan" {% if detected_timezone == 'Asia/Magadan' %}selected{% endif %}>Магадан (UTC+11)</option>
+                    <option value="Asia/Kamchatka" {% if detected_timezone == 'Asia/Kamchatka' %}selected{% endif %}>Камчатка (UTC+12)</option>
+                </select>
+                <small style="color: var(--text-secondary);">
+                    🔍 Автоматически определён: <strong>{{ detected_timezone }}</strong>
+                    <br>Если не совпадает — выберите вручную
+                </small>
+            </div>
+            
             <button type="submit" class="btn btn-primary" style="width: 100%;">Зарегистрироваться</button>
         </form>
         
