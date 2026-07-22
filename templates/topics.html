@@ -81,11 +81,14 @@
             <div class="form-group">
                 <label class="form-label">📱 Для какой группы?</label>
                 <select name="group_id" class="form-control">
-                    <option value="">Общие (для всех групп)</option>
+                    <option value="">🌍 Общие (для всех групп)</option>
                     {% for group in groups %}
-                        <option value="{{ group.id }}">{{ group.group_name or 'Группа ' + group.group_id }}</option>
+                        <option value="{{ group.id }}">📱 {{ group.group_name or 'Группа ' + group.group_id }}</option>
                     {% endfor %}
                 </select>
+                <small style="color: var(--text-secondary);">
+                    💡 Выберите группу, для которой добавляете темы
+                </small>
             </div>
             
             <div class="form-group">
