@@ -3,10 +3,12 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
 import os
 import sys
+import requests
+import pytz
 
 from config import Config
 from database import init_db, get_db
-# from bot import start_bot   # <--- ЗАКОММЕНТИРОВАНО! Бот больше не запускается отсюда
+# from bot import start_bot   # Бот больше не запускается отсюда
 
 print("=" * 60)
 print("🚀 ЗАПУСК APP.PY")
@@ -20,9 +22,7 @@ app.config['PERMANENT_SESSION_LIFETIME'] = 86400
 init_db()
 
 # === БОТ БОЛЬШЕ НЕ ЗАПУСКАЕТСЯ ЗДЕСЬ ===
-# Бот запускается отдельно через консоль командой:
-# python3 -c "import bot; bot.start_bot(); import time; time.sleep(999999)"
-# start_bot()   # <--- ЗАКОММЕНТИРОВАНО
+# Бот запускается отдельно через консоль
 
 # ==================== ДЕКОРАТОРЫ ====================
 
@@ -52,6 +52,24 @@ def admin_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
+# ==================== ФУНКЦИЯ АВТООПРЕДЕЛЕНИЯ ЧАСОВОГО ПОЯСА ====================
+
+def detect_timezone(ip_address=None):
+    """Определение часового пояса по IP-адресу"""
+    try:
+        if ip_address:
+            response = requests.get(f'http://ip-api.com/json/{ip_address}', timeout=5)
+        else:
+            response = requests.get('http://ip-api.com/json/', timeout=5)
+        
+        if response.status_code == 200:
+            data = response.json()
+            if data.get('status') == 'success':
+                return data.get('timezone', 'Asia/Novosibirsk')
+    except:
+        pass
+    return 'Asia/Novosibirsk'
+
 # ==================== HEALTH CHECK ====================
 
 @app.route('/health')
@@ -71,35 +89,39 @@ def register():
     if 'user_id' in session:
         return redirect(url_for('dashboard'))
     
+    # Автоопределение часового пояса
+    detected_timezone = detect_timezone(request.remote_addr)
+    
     if request.method == 'POST':
         email = request.form.get('email')
         password = request.form.get('password')
         password_confirm = request.form.get('password_confirm')
+        timezone = request.form.get('timezone', detected_timezone)
         
         if not email or not password:
             flash('Заполните все поля', 'danger')
-            return render_template('register.html')
+            return render_template('register.html', detected_timezone=detected_timezone)
         
         if password != password_confirm:
             flash('Пароли не совпадают', 'danger')
-            return render_template('register.html')
+            return render_template('register.html', detected_timezone=detected_timezone)
         
         if len(password) < 6:
             flash('Пароль должен быть минимум 6 символов', 'danger')
-            return render_template('register.html')
+            return render_template('register.html', detected_timezone=detected_timezone)
         
         with get_db() as conn:
             cursor = conn.cursor()
             cursor.execute('SELECT id FROM users WHERE email = ?', (email,))
             if cursor.fetchone():
                 flash('Пользователь с таким email уже существует', 'danger')
-                return render_template('register.html')
+                return render_template('register.html', detected_timezone=detected_timezone)
             
             password_hash = generate_password_hash(password)
             cursor.execute('''
-                INSERT INTO users (email, password_hash, balance, timezone)
-                VALUES (?, ?, ?, ?)
-            ''', (email, password_hash, 0.0, 'Asia/Novosibirsk'))
+                INSERT INTO users (email, password_hash, balance, timezone, ip_address, detected_timezone)
+                VALUES (?, ?, ?, ?, ?, ?)
+            ''', (email, password_hash, 0.0, timezone, request.remote_addr, detected_timezone))
             conn.commit()
             user_id = cursor.lastrowid
             
@@ -145,7 +167,7 @@ def register():
         flash('Регистрация успешна! Войдите в систему', 'success')
         return redirect(url_for('login'))
     
-    return render_template('register.html')
+    return render_template('register.html', detected_timezone=detected_timezone)
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -190,7 +212,7 @@ def dashboard():
     with get_db() as conn:
         cursor = conn.cursor()
         
-        cursor.execute('SELECT balance, email, role FROM users WHERE id = ?', (session['user_id'],))
+        cursor.execute('SELECT balance, email, role, timezone FROM users WHERE id = ?', (session['user_id'],))
         user = cursor.fetchone()
         
         cursor.execute('SELECT is_configured, is_active, group_id FROM vk_settings WHERE user_id = ?', (session['user_id'],))
@@ -231,57 +253,75 @@ def dashboard():
                          recent_posts=recent_posts,
                          post_price=Config.POST_PRICE)
 
-# ==================== НАСТРОЙКИ VK ====================
+# ==================== ГРУППЫ VK (ОБНОВЛЁННЫЕ) ====================
 
-@app.route('/settings', methods=['GET', 'POST'])
+@app.route('/groups', methods=['GET', 'POST'])
 @login_required
-def settings():
+def groups():
     with get_db() as conn:
         cursor = conn.cursor()
         
         if request.method == 'POST':
-            vk_token = request.form.get('vk_token')
-            group_id = request.form.get('group_id')
-            is_active = request.form.get('is_active', '1')
+            action = request.form.get('action')
             
-            if not vk_token or not group_id:
-                flash('Заполните все поля', 'danger')
-                return redirect(url_for('settings'))
-            
-            try:
-                import vk_api
-                vk_session = vk_api.VkApi(token=vk_token)
-                vk = vk_session.get_api()
-                vk.groups.getById(group_id=group_id)
-                is_configured = 1
-            except Exception as e:
-                flash(f'Ошибка подключения к VK: {str(e)}', 'danger')
-                is_configured = 0
-            
-            cursor.execute('SELECT id FROM vk_settings WHERE user_id = ?', (session['user_id'],))
-            existing = cursor.fetchone()
-            
-            if existing:
+            if action == 'add':
+                vk_token = request.form.get('vk_token')
+                group_id = request.form.get('group_id')
+                group_name = request.form.get('group_name', 'Группа ВК')
+                timezone = request.form.get('timezone', 'Asia/Novosibirsk')
+                
+                if not vk_token or not group_id:
+                    flash('Заполните все поля', 'danger')
+                    return redirect(url_for('groups'))
+                
+                try:
+                    import vk_api
+                    vk_session = vk_api.VkApi(token=vk_token)
+                    vk = vk_session.get_api()
+                    info = vk.groups.getById(group_id=group_id)
+                    group_name = info[0]['name']
+                    is_configured = 1
+                except Exception as e:
+                    flash(f'Ошибка подключения к VK: {str(e)}', 'danger')
+                    is_configured = 0
+                
                 cursor.execute('''
-                    UPDATE vk_settings 
-                    SET vk_token = ?, group_id = ?, is_configured = ?, is_active = ?
-                    WHERE user_id = ?
-                ''', (vk_token, group_id, is_configured, int(is_active), session['user_id']))
-            else:
+                    INSERT INTO vk_settings (user_id, vk_token, group_id, group_name, is_configured, is_active, timezone)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                ''', (session['user_id'], vk_token, group_id, group_name, is_configured, 1, timezone))
+                conn.commit()
+                flash(f'✅ Группа "{group_name}" добавлена!', 'success')
+            
+            elif action == 'delete':
+                group_id_db = request.form.get('group_id_db')
+                cursor.execute('DELETE FROM vk_settings WHERE id = ? AND user_id = ?', 
+                              (group_id_db, session['user_id']))
+                conn.commit()
+                flash('Группа удалена', 'info')
+            
+            elif action == 'toggle':
+                group_id_db = request.form.get('group_id_db')
                 cursor.execute('''
-                    INSERT INTO vk_settings (user_id, vk_token, group_id, is_configured, is_active)
-                    VALUES (?, ?, ?, ?, ?)
-                ''', (session['user_id'], vk_token, group_id, is_configured, int(is_active)))
+                    UPDATE vk_settings SET is_active = NOT is_active WHERE id = ? AND user_id = ?
+                ''', (group_id_db, session['user_id']))
+                conn.commit()
+                flash('Статус группы изменён', 'success')
             
-            conn.commit()
+            elif action == 'update_timezone':
+                group_id_db = request.form.get('group_id_db')
+                timezone = request.form.get('timezone')
+                cursor.execute('''
+                    UPDATE vk_settings SET timezone = ? WHERE id = ? AND user_id = ?
+                ''', (timezone, group_id_db, session['user_id']))
+                conn.commit()
+                flash('✅ Часовой пояс группы обновлён', 'success')
             
-            flash('Настройки сохранены!', 'success')
-            return redirect(url_for('settings'))
+            return redirect(url_for('groups'))
         
         cursor.execute('SELECT * FROM vk_settings WHERE user_id = ?', (session['user_id'],))
-        settings_data = cursor.fetchone()
+        groups_list = cursor.fetchall()
     
-    return render_template('settings.html', vk_settings=settings_data)
+    return render_template('groups.html', groups=groups_list)
 
 @app.route('/api/test-vk', methods=['POST'])
 @login_required
@@ -305,7 +345,34 @@ def test_vk():
             'message': str(e)
         }), 400
 
-# ==================== УПРАВЛЕНИЕ ТЕМАМИ ====================
+@app.route('/api/test-vk-group/<int:group_id_db>', methods=['GET'])
+@login_required
+def test_vk_group(group_id_db):
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute('SELECT vk_token, group_id FROM vk_settings WHERE id = ? AND user_id = ?', 
+                      (group_id_db, session['user_id']))
+        group = cursor.fetchone()
+        
+        if not group:
+            return jsonify({'success': False, 'message': 'Группа не найдена'}), 404
+        
+        try:
+            import vk_api
+            vk_session = vk_api.VkApi(token=group['vk_token'])
+            vk = vk_session.get_api()
+            info = vk.groups.getById(group_id=group['group_id'])
+            return jsonify({
+                'success': True,
+                'message': f'✅ Группа "{info[0]["name"]}" доступна'
+            })
+        except Exception as e:
+            return jsonify({
+                'success': False,
+                'message': f'❌ Ошибка: {str(e)}'
+            }), 400
+
+# ==================== УПРАВЛЕНИЕ ТЕМАМИ (С ПОДДЕРЖКОЙ ГРУПП) ====================
 
 @app.route('/topics', methods=['GET', 'POST'])
 @login_required
@@ -313,9 +380,17 @@ def topics():
     with get_db() as conn:
         cursor = conn.cursor()
         
+        # Получаем группы пользователя
+        cursor.execute('SELECT id, group_id, group_name FROM vk_settings WHERE user_id = ?', (session['user_id'],))
+        groups_list = cursor.fetchall()
+        
         if request.method == 'POST':
             topics_bulk = request.form.get('topics_bulk', '').strip()
             is_morning = request.form.get('is_morning', '0')
+            group_id = request.form.get('group_id')
+            
+            if group_id == '':
+                group_id = None
             
             if topics_bulk:
                 import re
@@ -326,14 +401,14 @@ def topics():
                 for topic in topics_list:
                     cursor.execute('''
                         SELECT id FROM topics 
-                        WHERE user_id = ? AND topic = ? AND is_morning = ?
-                    ''', (session['user_id'], topic, int(is_morning)))
+                        WHERE user_id = ? AND group_id IS ? AND topic = ? AND is_morning = ?
+                    ''', (session['user_id'], group_id, topic, int(is_morning)))
                     
                     if not cursor.fetchone():
                         cursor.execute('''
-                            INSERT INTO topics (user_id, topic, is_morning)
-                            VALUES (?, ?, ?)
-                        ''', (session['user_id'], topic, int(is_morning)))
+                            INSERT INTO topics (user_id, group_id, topic, is_morning)
+                            VALUES (?, ?, ?, ?)
+                        ''', (session['user_id'], group_id, topic, int(is_morning)))
                         added_count += 1
                 
                 conn.commit()
@@ -343,36 +418,51 @@ def topics():
             
             return redirect(url_for('topics'))
         
-        cursor.execute('SELECT * FROM topics WHERE user_id = ? AND is_morning = 0 AND is_active = 1 ORDER BY id', 
-                      (session['user_id'],))
-        topics_list = cursor.fetchall()
+        # Получаем темы для каждой группы
+        topics_by_group = {}
+        for group in groups_list:
+            cursor.execute('''
+                SELECT * FROM topics 
+                WHERE user_id = ? AND group_id = ? AND is_morning = 0 AND is_active = 1 
+                ORDER BY id
+            ''', (session['user_id'], group['id']))
+            topics_by_group[group['id']] = cursor.fetchall()
         
-        cursor.execute('SELECT * FROM topics WHERE user_id = ? AND is_morning = 1 AND is_active = 1 ORDER BY id', 
-                      (session['user_id'],))
+        # Общие темы (без группы)
+        cursor.execute('''
+            SELECT * FROM topics 
+            WHERE user_id = ? AND group_id IS NULL AND is_morning = 0 AND is_active = 1 
+            ORDER BY id
+        ''', (session['user_id'],))
+        common_topics = cursor.fetchall()
+        
+        cursor.execute('''
+            SELECT * FROM topics 
+            WHERE user_id = ? AND is_morning = 1 AND is_active = 1 
+            ORDER BY id
+        ''', (session['user_id'],))
         morning_list = cursor.fetchall()
     
     return render_template('topics.html', 
-                         topics=topics_list, 
+                         groups=groups_list,
+                         topics_by_group=topics_by_group,
+                         common_topics=common_topics,
                          morning_topics=morning_list)
 
 @app.route('/clear-topics', methods=['POST'])
 @login_required
 def clear_topics():
+    group_id = request.form.get('group_id')
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute('DELETE FROM topics WHERE user_id = ? AND is_morning = 0', (session['user_id'],))
+        if group_id:
+            cursor.execute('DELETE FROM topics WHERE user_id = ? AND group_id = ? AND is_morning = 0', 
+                          (session['user_id'], group_id))
+        else:
+            cursor.execute('DELETE FROM topics WHERE user_id = ? AND group_id IS NULL AND is_morning = 0', 
+                          (session['user_id'],))
         conn.commit()
     flash('🗑️ Все темы удалены', 'info')
-    return redirect(url_for('topics'))
-
-@app.route('/clear-morning-topics', methods=['POST'])
-@login_required
-def clear_morning_topics():
-    with get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute('DELETE FROM topics WHERE user_id = ? AND is_morning = 1', (session['user_id'],))
-        conn.commit()
-    flash('🗑️ Все утренние темы удалены', 'info')
     return redirect(url_for('topics'))
 
 @app.route('/delete-topic/<int:topic_id>', methods=['POST'])
@@ -386,7 +476,7 @@ def delete_topic(topic_id):
     flash('Тема удалена', 'info')
     return redirect(request.referrer or url_for('topics'))
 
-# ==================== РАСПИСАНИЕ ====================
+# ==================== РАСПИСАНИЕ (С ПОДДЕРЖКОЙ ГРУПП) ====================
 
 @app.route('/schedule', methods=['GET', 'POST'])
 @login_required
@@ -394,14 +484,23 @@ def schedule():
     with get_db() as conn:
         cursor = conn.cursor()
         
+        # Получаем группы пользователя
+        cursor.execute('SELECT id, group_id, group_name FROM vk_settings WHERE user_id = ?', (session['user_id'],))
+        groups_list = cursor.fetchall()
+        
         if request.method == 'POST':
             start_time = request.form.get('start_time', '10:00')
             end_time = request.form.get('end_time', '22:00')
             interval_minutes = int(request.form.get('interval_minutes', 30))
             days_of_week = request.form.get('days_of_week', 'all')
             days = request.form.get('days', 'Ежедневно')
+            group_id = request.form.get('group_id')
             
-            cursor.execute('DELETE FROM schedule WHERE user_id = ?', (session['user_id'],))
+            if group_id == '':
+                group_id = None
+            
+            cursor.execute('DELETE FROM schedule WHERE user_id = ? AND group_id IS ?', 
+                          (session['user_id'], group_id))
             
             from datetime import datetime, timedelta
             
@@ -416,19 +515,36 @@ def schedule():
             
             for time in times:
                 cursor.execute('''
-                    INSERT INTO schedule (user_id, time, days, start_time, end_time, interval_minutes, days_of_week)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                ''', (session['user_id'], time, days, start_time, end_time, interval_minutes, days_of_week))
+                    INSERT INTO schedule (user_id, group_id, time, days, start_time, end_time, interval_minutes, days_of_week)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (session['user_id'], group_id, time, days, start_time, end_time, interval_minutes, days_of_week))
             
             conn.commit()
             flash(f'✅ Расписание обновлено! Добавлено {len(times)} времен публикации!', 'success')
             return redirect(url_for('schedule'))
         
-        cursor.execute('SELECT * FROM schedule WHERE user_id = ? AND is_active = 1 ORDER BY time', 
-                      (session['user_id'],))
-        schedule_list = cursor.fetchall()
+        # Получаем расписание для каждой группы
+        schedule_by_group = {}
+        for group in groups_list:
+            cursor.execute('''
+                SELECT * FROM schedule 
+                WHERE user_id = ? AND group_id = ? AND is_active = 1 
+                ORDER BY time
+            ''', (session['user_id'], group['id']))
+            schedule_by_group[group['id']] = cursor.fetchall()
+        
+        # Общее расписание (без группы)
+        cursor.execute('''
+            SELECT * FROM schedule 
+            WHERE user_id = ? AND group_id IS NULL AND is_active = 1 
+            ORDER BY time
+        ''', (session['user_id'],))
+        common_schedule = cursor.fetchall()
     
-    return render_template('schedule.html', schedule=schedule_list)
+    return render_template('schedule.html', 
+                         groups=groups_list,
+                         schedule_by_group=schedule_by_group,
+                         common_schedule=common_schedule)
 
 @app.route('/delete-schedule/<int:schedule_id>', methods=['POST'])
 @login_required
@@ -441,50 +557,44 @@ def delete_schedule(schedule_id):
     flash('Время удалено', 'info')
     return redirect(request.referrer or url_for('schedule'))
 
-@app.route('/reset-schedule', methods=['POST'])
-@login_required
-def reset_schedule():
-    with get_db() as conn:
-        cursor = conn.cursor()
-        
-        cursor.execute('DELETE FROM schedule WHERE user_id = ?', (session['user_id'],))
-        
-        default_schedule = []
-        for hour in range(10, 23):
-            default_schedule.append(f"{hour:02d}:00")
-            if hour != 22:
-                default_schedule.append(f"{hour:02d}:30")
-        
-        for time in default_schedule:
-            cursor.execute('''
-                INSERT INTO schedule (user_id, time, days)
-                VALUES (?, ?, ?)
-            ''', (session['user_id'], time, 'Ежедневно'))
-        
-        conn.commit()
-    flash('Расписание восстановлено', 'success')
-    return redirect(url_for('schedule'))
-
 @app.route('/clear-schedule', methods=['POST'])
 @login_required
 def clear_schedule():
+    group_id = request.form.get('group_id')
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute('DELETE FROM schedule WHERE user_id = ?', (session['user_id'],))
+        if group_id:
+            cursor.execute('DELETE FROM schedule WHERE user_id = ? AND group_id = ?', 
+                          (session['user_id'], group_id))
+        else:
+            cursor.execute('DELETE FROM schedule WHERE user_id = ? AND group_id IS NULL', 
+                          (session['user_id'],))
         conn.commit()
     flash('🗑️ Всё расписание удалено', 'info')
     return redirect(url_for('schedule'))
 
+# ==================== ИСТОРИЯ ====================
+
 @app.route('/history')
 @login_required
 def history():
+    page = request.args.get('page', 1, type=int)
+    per_page = 20
+    offset = (page - 1) * per_page
+    
     with get_db() as conn:
         cursor = conn.cursor()
+        
+        # Общее количество
+        cursor.execute('SELECT COUNT(*) as total FROM posts_history WHERE user_id = ?', (session['user_id'],))
+        total = cursor.fetchone()['total']
+        
         cursor.execute('''
             SELECT * FROM posts_history 
             WHERE user_id = ? 
             ORDER BY published_at DESC
-        ''', (session['user_id'],))
+            LIMIT ? OFFSET ?
+        ''', (session['user_id'], per_page, offset))
         history_list = cursor.fetchall()
         
         cursor.execute('''
@@ -495,7 +605,11 @@ def history():
     
     return render_template('history.html', 
                          history=history_list, 
-                         total_cost=total_cost)
+                         total_cost=total_cost,
+                         page=page,
+                         total=total,
+                         per_page=per_page,
+                         total_pages=(total + per_page - 1) // per_page)
 
 @app.route('/clear-history', methods=['POST'])
 @login_required
@@ -506,6 +620,8 @@ def clear_history():
         conn.commit()
     flash('История очищена', 'info')
     return redirect(url_for('history'))
+
+# ==================== БАЛАНС ====================
 
 @app.route('/balance', methods=['GET', 'POST'])
 @login_required
@@ -551,106 +667,6 @@ def balance():
                          payments=payments,
                          post_price=Config.POST_PRICE)
 
-@app.route('/admin')
-@admin_required
-def admin_panel():
-    with get_db() as conn:
-        cursor = conn.cursor()
-        
-        cursor.execute('SELECT COUNT(*) as total FROM users')
-        total_users = cursor.fetchone()['total']
-        
-        cursor.execute('SELECT COUNT(*) as total FROM posts_history WHERE status = "published"')
-        total_posts = cursor.fetchone()['total']
-        
-        cursor.execute('SELECT SUM(amount) as total FROM payments WHERE status = "success"')
-        total_revenue = cursor.fetchone()['total'] or 0
-        
-        cursor.execute('''
-            SELECT id, email, balance, role, created_at, last_login 
-            FROM users 
-            ORDER BY created_at DESC
-        ''')
-        users = cursor.fetchall()
-    
-    return render_template('admin.html',
-                         total_users=total_users,
-                         total_posts=total_posts,
-                         total_revenue=total_revenue,
-                         users=users)
-
-@app.route('/admin/user/<int:user_id>/toggle', methods=['POST'])
-@admin_required
-def admin_toggle_user(user_id):
-    with get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute('''
-            UPDATE users SET is_active = NOT is_active WHERE id = ?
-        ''', (user_id,))
-        conn.commit()
-    flash('Статус пользователя изменён', 'success')
-    return redirect(url_for('admin_panel'))
-
-# ==================== УПРАВЛЕНИЕ ГРУППАМИ VK ====================
-
-@app.route('/groups', methods=['GET', 'POST'])
-@login_required
-def groups():
-    with get_db() as conn:
-        cursor = conn.cursor()
-        
-        if request.method == 'POST':
-            action = request.form.get('action')
-            
-            if action == 'add':
-                vk_token = request.form.get('vk_token')
-                group_id = request.form.get('group_id')
-                group_name = request.form.get('group_name', 'Группа ВК')
-                
-                if not vk_token or not group_id:
-                    flash('Заполните все поля', 'danger')
-                    return redirect(url_for('groups'))
-                
-                try:
-                    import vk_api
-                    vk_session = vk_api.VkApi(token=vk_token)
-                    vk = vk_session.get_api()
-                    info = vk.groups.getById(group_id=group_id)
-                    group_name = info[0]['name']
-                    is_configured = 1
-                except Exception as e:
-                    flash(f'Ошибка подключения к VK: {str(e)}', 'danger')
-                    is_configured = 0
-                
-                cursor.execute('''
-                    INSERT INTO vk_settings (user_id, vk_token, group_id, group_name, is_configured, is_active)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                ''', (session['user_id'], vk_token, group_id, group_name, is_configured, 1))
-                conn.commit()
-                flash(f'✅ Группа "{group_name}" добавлена!', 'success')
-            
-            elif action == 'delete':
-                group_id_db = request.form.get('group_id_db')
-                cursor.execute('DELETE FROM vk_settings WHERE id = ? AND user_id = ?', 
-                              (group_id_db, session['user_id']))
-                conn.commit()
-                flash('Группа удалена', 'info')
-            
-            elif action == 'toggle':
-                group_id_db = request.form.get('group_id_db')
-                cursor.execute('''
-                    UPDATE vk_settings SET is_active = NOT is_active WHERE id = ? AND user_id = ?
-                ''', (group_id_db, session['user_id']))
-                conn.commit()
-                flash('Статус группы изменён', 'success')
-            
-            return redirect(url_for('groups'))
-        
-        cursor.execute('SELECT * FROM vk_settings WHERE user_id = ?', (session['user_id'],))
-        groups_list = cursor.fetchall()
-    
-    return render_template('groups.html', groups=groups_list)
-
 # ==================== НАСТРОЙКИ ВРЕМЕНИ ====================
 
 @app.route('/timezone', methods=['GET', 'POST'])
@@ -671,11 +687,9 @@ def timezone_settings():
                     UPDATE users SET timezone = ? WHERE id = ?
                 ''', (new_timezone, session['user_id']))
                 conn.commit()
+                session['timezone'] = new_timezone
                 flash(f'✅ Часовой пояс изменён на {new_timezone}', 'success')
                 return redirect(url_for('timezone_settings'))
-        
-        import pytz
-        from datetime import datetime
         
         timezones = [
             ('UTC', 'UTC (Всемирное координированное время)'),
@@ -702,6 +716,48 @@ def timezone_settings():
                          current_timezone=current_timezone,
                          timezones=timezones,
                          current_time=current_time)
+
+# ==================== АДМИНКА ====================
+
+@app.route('/admin')
+@admin_required
+def admin_panel():
+    with get_db() as conn:
+        cursor = conn.cursor()
+        
+        cursor.execute('SELECT COUNT(*) as total FROM users')
+        total_users = cursor.fetchone()['total']
+        
+        cursor.execute('SELECT COUNT(*) as total FROM posts_history WHERE status = "published"')
+        total_posts = cursor.fetchone()['total']
+        
+        cursor.execute('SELECT SUM(amount) as total FROM payments WHERE status = "success"')
+        total_revenue = cursor.fetchone()['total'] or 0
+        
+        cursor.execute('''
+            SELECT id, email, balance, role, created_at, last_login, timezone 
+            FROM users 
+            ORDER BY created_at DESC
+        ''')
+        users = cursor.fetchall()
+    
+    return render_template('admin.html',
+                         total_users=total_users,
+                         total_posts=total_posts,
+                         total_revenue=total_revenue,
+                         users=users)
+
+@app.route('/admin/user/<int:user_id>/toggle', methods=['POST'])
+@admin_required
+def admin_toggle_user(user_id):
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            UPDATE users SET is_active = NOT is_active WHERE id = ?
+        ''', (user_id,))
+        conn.commit()
+    flash('Статус пользователя изменён', 'success')
+    return redirect(url_for('admin_panel'))
 
 # ==================== ЗАПУСК ====================
 
