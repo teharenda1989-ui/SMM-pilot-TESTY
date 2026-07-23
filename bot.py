@@ -108,12 +108,22 @@ def process_user(user_id):
                 print(f"⚠️ Пользователь {user_id}: Недостаточно средств")
                 return
         
+        # Берём первую группу
+        group = groups[0]
+        group_id = group['id']
+        
         now = get_user_time(user_id)
         current_time = now.strftime("%H:%M")
         current_minute = now.minute
         
-        schedule = get_user_schedule(user_id)
-        if not schedule:
+        # Получаем расписание для группы И общее
+        schedule = get_user_schedule(user_id, group_id)
+        common_schedule = get_user_schedule(user_id, None)
+        
+        # Объединяем
+        all_schedule = schedule + common_schedule if schedule else common_schedule
+        
+        if not all_schedule:
             print(f"⚠️ Пользователь {user_id}: Нет расписания")
             return
         
@@ -137,7 +147,7 @@ def process_user(user_id):
             'sunday': ['Вс']
         }
         
-        for item in schedule:
+        for item in all_schedule:
             schedule_hour, schedule_minute = map(int, item['time'].split(':'))
             
             if current_minute != schedule_minute:
@@ -161,9 +171,9 @@ def process_user(user_id):
             
             print(f"   ✅ Все проверки пройдены! Публикуем...")
             
-            topics = get_user_topics(user_id)
+            topics = get_user_topics(user_id, group_id)
             if not topics:
-                print(f"⚠️ Пользователь {user_id}: Нет тем")
+                print(f"⚠️ Пользователь {user_id}: Нет тем для группы")
                 return
             
             topic = random.choice(topics)
@@ -183,11 +193,8 @@ def process_user(user_id):
                 print(f"❌ Пользователь {user_id}: Ошибка генерации: {text}")
                 return
             
-            # === ТОЛЬКО ОДНА ПУБЛИКАЦИЯ (БЕЗ ДУБЛЕЙ) ===
             try:
-                group = groups[0]
                 print(f"   📤 Публикуем в группу {group['group_id']}...")
-                
                 post_id = publish_post(
                     group['vk_token'],
                     group['group_id'],
@@ -223,7 +230,6 @@ def process_user(user_id):
                     conn.commit()
                 print(f"❌ Пользователь {user_id}: Ошибка в группе {group['group_id']} - {e}")
             
-            # === ВЫХОДИМ СРАЗУ ПОСЛЕ ПУБЛИКАЦИИ ===
             break
             
     except Exception as e:
