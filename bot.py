@@ -1,277 +1,290 @@
-import sqlite3
 import os
-from contextlib import contextmanager
+import time
+import threading
+import requests
+import vk_api
+from datetime import datetime, timezone, timedelta
+import random
+from dotenv import load_dotenv
+import pytz
+
 from config import Config
+from database import get_db, deduct_post_cost, get_user_topics, get_user_schedule, get_user_groups, get_user_timezone
 
-DATABASE_PATH = Config.DATABASE_PATH
+load_dotenv()
 
-@contextmanager
-def get_db():
-    conn = sqlite3.connect(DATABASE_PATH)
-    conn.row_factory = sqlite3.Row
+# Настройки
+YANDEX_FOLDER_ID = Config.YANDEX_FOLDER_ID
+YANDEX_API_KEY = Config.YANDEX_API_KEY
+POST_PRICE = Config.POST_PRICE
+
+# Часовой пояс Новосибирска
+NOVOSIBIRSK_TZ = pytz.timezone('Asia/Novosibirsk')
+
+def get_user_time(user_id):
+    """Получить текущее время пользователя с его часовым поясом"""
+    timezone_str = get_user_timezone(user_id)
     try:
-        yield conn
-    finally:
-        conn.close()
+        tz = pytz.timezone(timezone_str)
+        return datetime.now(tz)
+    except:
+        return datetime.now(NOVOSIBIRSK_TZ)
 
-def init_db():
-    """Создание всех таблиц"""
-    print("🔄 Инициализация БД...")
+def generate_text(topic, style='информативный'):
     try:
-        with get_db() as conn:
-            cursor = conn.cursor()
-            
-            # Пользователи
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS users (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    email TEXT UNIQUE NOT NULL,
-                    password_hash TEXT NOT NULL,
-                    balance REAL DEFAULT 0,
-                    role TEXT DEFAULT 'user',
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    is_active BOOLEAN DEFAULT 1,
-                    last_login TIMESTAMP,
-                    timezone TEXT DEFAULT 'Asia/Novosibirsk',
-                    ip_address TEXT,
-                    detected_timezone TEXT
-                )
-            ''')
-            
-            # Добавляем колонки если их нет
-            for col in ['timezone', 'ip_address', 'detected_timezone']:
-                try:
-                    cursor.execute(f"ALTER TABLE users ADD COLUMN {col} TEXT")
-                except:
-                    pass
-            
-            # Настройки ВК
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS vk_settings (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    user_id INTEGER NOT NULL,
-                    vk_token TEXT,
-                    group_id TEXT,
-                    group_name TEXT,
-                    is_configured BOOLEAN DEFAULT 0,
-                    is_active BOOLEAN DEFAULT 1,
-                    last_post_time TIMESTAMP,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    timezone TEXT DEFAULT 'Asia/Novosibirsk',
-                    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-                )
-            ''')
-            
-            try:
-                cursor.execute("ALTER TABLE vk_settings ADD COLUMN timezone TEXT DEFAULT 'Asia/Novosibirsk'")
-            except:
-                pass
-            
-            # Темы
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS topics (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    user_id INTEGER NOT NULL,
-                    group_id INTEGER,
-                    topic TEXT NOT NULL,
-                    is_morning BOOLEAN DEFAULT 0,
-                    is_active BOOLEAN DEFAULT 1,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-                    FOREIGN KEY (group_id) REFERENCES vk_settings(id) ON DELETE CASCADE
-                )
-            ''')
-            
-            try:
-                cursor.execute("ALTER TABLE topics ADD COLUMN group_id INTEGER REFERENCES vk_settings(id)")
-            except:
-                pass
-            
-            # Расписание
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS schedule (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    user_id INTEGER NOT NULL,
-                    group_id INTEGER,
-                    time TEXT NOT NULL,
-                    days TEXT DEFAULT 'Ежедневно',
-                    is_active BOOLEAN DEFAULT 1,
-                    start_time TEXT DEFAULT '10:00',
-                    end_time TEXT DEFAULT '22:00',
-                    interval_minutes INTEGER DEFAULT 30,
-                    days_of_week TEXT DEFAULT 'all',
-                    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-                    FOREIGN KEY (group_id) REFERENCES vk_settings(id) ON DELETE CASCADE
-                )
-            ''')
-            
-            try:
-                cursor.execute("ALTER TABLE schedule ADD COLUMN group_id INTEGER REFERENCES vk_settings(id)")
-            except:
-                pass
-            
-            for col in ['start_time', 'end_time', 'interval_minutes', 'days_of_week']:
-                try:
-                    cursor.execute(f"ALTER TABLE schedule ADD COLUMN {col} TEXT")
-                except:
-                    pass
-            
-            # История постов
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS posts_history (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    user_id INTEGER NOT NULL,
-                    group_id INTEGER,
-                    topic TEXT,
-                    text TEXT,
-                    status TEXT,
-                    cost REAL DEFAULT 0.50,
-                    error TEXT,
-                    post_id TEXT,
-                    published_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-                    FOREIGN KEY (group_id) REFERENCES vk_settings(id) ON DELETE CASCADE
-                )
-            ''')
-            
-            try:
-                cursor.execute("ALTER TABLE posts_history ADD COLUMN group_id INTEGER REFERENCES vk_settings(id)")
-            except:
-                pass
-            
-            # Платежи
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS payments (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    user_id INTEGER NOT NULL,
-                    amount REAL NOT NULL,
-                    status TEXT DEFAULT 'pending',
-                    payment_id TEXT,
-                    payment_url TEXT,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    completed_at TIMESTAMP,
-                    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-                )
-            ''')
-            
-            # Индексы
-            cursor.execute('CREATE INDEX IF NOT EXISTS idx_topics_user_id ON topics(user_id)')
-            cursor.execute('CREATE INDEX IF NOT EXISTS idx_topics_group_id ON topics(group_id)')
-            cursor.execute('CREATE INDEX IF NOT EXISTS idx_schedule_user_id ON schedule(user_id)')
-            cursor.execute('CREATE INDEX IF NOT EXISTS idx_schedule_group_id ON schedule(group_id)')
-            cursor.execute('CREATE INDEX IF NOT EXISTS idx_history_user_id ON posts_history(user_id)')
-            cursor.execute('CREATE INDEX IF NOT EXISTS idx_payments_user_id ON payments(user_id)')
-            
-            conn.commit()
-            
-            # Создаём администратора
-            from werkzeug.security import generate_password_hash
-            admin_email = Config.ADMIN_EMAIL
-            admin_pass = Config.ADMIN_PASSWORD
-            
-            cursor.execute('SELECT id FROM users WHERE email = ?', (admin_email,))
-            if not cursor.fetchone():
-                cursor.execute('''
-                    INSERT INTO users (email, password_hash, role, balance, timezone)
-                    VALUES (?, ?, ?, ?, ?)
-                ''', (admin_email, generate_password_hash(admin_pass), 'admin', 999999, 'Asia/Novosibirsk'))
-                conn.commit()
-                print(f"✅ Создан администратор: {admin_email} / {admin_pass}")
-            
-            print("✅ База данных инициализирована успешно!")
-            
+        if topic.startswith("Доброе утро"):
+            return topic + " 🚀"
+        
+        url = "https://llm.api.cloud.yandex.net/foundationModels/v1/completion"
+        headers = {
+            "Authorization": f"Api-Key {YANDEX_API_KEY}",
+            "Content-Type": "application/json"
+        }
+        
+        prompt = f"""
+        Напиши развернутый, полезный пост для ВКонтакте на тему: "{topic}".
+        Стиль: {style}.
+        
+        ТРЕБОВАНИЯ:
+        1. Длина: 5-8 предложений
+        2. Начни с вовлекающего вопроса или факта
+        3. Используй эмодзи (минимум 3-4 штуки)
+        4. Добавь конкретные советы или рекомендации
+        5. Закончи вопросом для комментариев
+        6. Добавь 5-7 хештегов в конце
+        7. Пиши на русском языке
+        """
+        
+        data = {
+            "modelUri": f"gpt://{YANDEX_FOLDER_ID}/yandexgpt-lite",
+            "completionOptions": {
+                "temperature": 0.8,
+                "maxTokens": 800
+            },
+            "messages": [
+                {"role": "system", "text": "Ты профессиональный SMM-копирайтер."},
+                {"role": "user", "text": prompt}
+            ]
+        }
+        
+        response = requests.post(url, headers=headers, json=data, timeout=60)
+        result = response.json()
+        
+        if 'error' in result:
+            return f"❌ Ошибка: {result['error']['message']}"
+        
+        return result['result']['alternatives'][0]['message']['text'].strip()
     except Exception as e:
-        print(f"❌ Ошибка инициализации БД: {e}")
+        return f"❌ Ошибка: {e}"
+
+def publish_post(vk_token, group_id, text):
+    try:
+        vk_session = vk_api.VkApi(token=vk_token)
+        vk = vk_session.get_api()
+        
+        post_params = {
+            'owner_id': f"-{group_id}",
+            'message': text,
+            'from_group': 1
+        }
+        
+        response = vk.wall.post(**post_params)
+        return response['post_id']
+    except Exception as e:
         raise e
 
-def get_user_topics(user_id, group_id=None, is_morning=False):
-    with get_db() as conn:
-        cursor = conn.cursor()
-        if group_id:
-            cursor.execute('''
-                SELECT topic FROM topics 
-                WHERE user_id = ? AND (group_id = ? OR group_id IS NULL) AND is_morning = ? AND is_active = 1
-            ''', (user_id, group_id, 1 if is_morning else 0))
-        else:
-            cursor.execute('''
-                SELECT topic FROM topics 
-                WHERE user_id = ? AND group_id IS NULL AND is_morning = ? AND is_active = 1
-            ''', (user_id, 1 if is_morning else 0))
-        return [row['topic'] for row in cursor.fetchall()]
+def process_user(user_id):
+    try:
+        groups = get_user_groups(user_id)
+        if not groups:
+            print(f"⚠️ Пользователь {user_id}: Нет активных групп")
+            return
+        
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT balance FROM users WHERE id = ?', (user_id,))
+            user = cursor.fetchone()
+            if not user or user['balance'] < POST_PRICE:
+                print(f"⚠️ Пользователь {user_id}: Недостаточно средств")
+                return
+        
+        now = get_user_time(user_id)
+        current_time = now.strftime("%H:%M")
+        current_minute = now.minute
+        
+        # Получаем расписание пользователя (общее)
+        all_schedule = get_user_schedule(user_id, None)
+        
+        if not all_schedule:
+            print(f"⚠️ Пользователь {user_id}: Нет расписания")
+            return
+        
+        print(f"🔍 Пользователь {user_id}:")
+        print(f"   Текущее время: {current_time}")
+        print(f"   Минута: {current_minute}")
+        
+        weekdays = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
+        today = weekdays[now.weekday()]
+        
+        days_map = {
+            'all': ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'],
+            'weekdays': ['Пн', 'Вт', 'Ср', 'Чт', 'Пт'],
+            'weekend': ['Сб', 'Вс'],
+            'monday': ['Пн'],
+            'tuesday': ['Вт'],
+            'wednesday': ['Ср'],
+            'thursday': ['Чт'],
+            'friday': ['Пт'],
+            'saturday': ['Сб'],
+            'sunday': ['Вс']
+        }
+        
+        for item in all_schedule:
+            schedule_hour, schedule_minute = map(int, item['time'].split(':'))
+            
+            if current_minute != schedule_minute:
+                continue
+            
+            print(f"   ✅ Время совпадает! {item['time']} ≈ {current_time}")
+            
+            days_of_week = item['days_of_week'] if 'days_of_week' in item.keys() else 'all'
+            start_time = item['start_time'] if 'start_time' in item.keys() else '10:00'
+            end_time = item['end_time'] if 'end_time' in item.keys() else '23:59'
+            
+            allowed_days = days_map.get(days_of_week, ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'])
+            
+            if today not in allowed_days:
+                print(f"   ❌ Сегодня {today} не разрешён")
+                continue
+            
+            if current_time < start_time or current_time > end_time:
+                print(f"   ❌ Время вне диапазона {start_time} - {end_time}")
+                continue
+            
+            print(f"   ✅ Все проверки пройдены! Публикуем...")
+            
+            # === ПРОХОДИМ ПО ВСЕМ ГРУППАМ ПОЛЬЗОВАТЕЛЯ ===
+            for group in groups:
+                group_id = group['id']
+                
+                # Получаем темы для этой группы
+                topics = get_user_topics(user_id, group_id)
+                if not topics:
+                    print(f"⚠️ Пользователь {user_id}: Нет тем для группы {group['group_id']}")
+                    continue
+                
+                topic = random.choice(topics)
+                style = random.choice(['информативный', 'юмористический', 'вовлекающий'])
+                
+                print(f"   📝 Генерируем пост для группы {group['group_id']} на тему: {topic}")
+                text = generate_text(topic, style)
+                
+                if text.startswith("❌"):
+                    with get_db() as conn:
+                        cursor = conn.cursor()
+                        cursor.execute('''
+                            INSERT INTO posts_history (user_id, topic, text, status, error)
+                            VALUES (?, ?, ?, ?, ?)
+                        ''', (user_id, topic, text[:500], 'failed', text))
+                        conn.commit()
+                    print(f"❌ Пользователь {user_id}: Ошибка генерации для группы {group['group_id']}: {text}")
+                    continue
+                
+                try:
+                    print(f"   📤 Публикуем в группу {group['group_id']}...")
+                    post_id = publish_post(
+                        group['vk_token'],
+                        group['group_id'],
+                        text
+                    )
+                    
+                    if deduct_post_cost(user_id):
+                        status = 'published'
+                        cost = POST_PRICE
+                        error = None
+                    else:
+                        status = 'insufficient_balance'
+                        cost = 0
+                        error = 'Недостаточно средств'
+                    
+                    with get_db() as conn:
+                        cursor = conn.cursor()
+                        cursor.execute('''
+                            INSERT INTO posts_history (user_id, topic, text, status, cost, error, post_id)
+                            VALUES (?, ?, ?, ?, ?, ?, ?)
+                        ''', (user_id, topic, text[:500], status, cost, error, post_id))
+                        conn.commit()
+                    
+                    print(f"✅ Пользователь {user_id}: Пост опубликован в {current_time} в группе {group['group_id']}!")
+                    
+                except Exception as e:
+                    with get_db() as conn:
+                        cursor = conn.cursor()
+                        cursor.execute('''
+                            INSERT INTO posts_history (user_id, topic, text, status, error)
+                            VALUES (?, ?, ?, ?, ?)
+                        ''', (user_id, topic, text[:500], 'failed', str(e)))
+                        conn.commit()
+                    print(f"❌ Пользователь {user_id}: Ошибка в группе {group['group_id']} - {e}")
+            
+            break  # Выходим после обработки расписания
+            
+    except Exception as e:
+        print(f"⚠️ Ошибка обработки пользователя {user_id}: {e}")
 
-def get_user_schedule(user_id, group_id=None):
-    with get_db() as conn:
-        cursor = conn.cursor()
-        if group_id:
-            cursor.execute('''
-                SELECT id, time, days, start_time, end_time, interval_minutes, days_of_week 
-                FROM schedule 
-                WHERE user_id = ? AND (group_id = ? OR group_id IS NULL) AND is_active = 1
-                ORDER BY time
-            ''', (user_id, group_id))
-        else:
-            cursor.execute('''
-                SELECT id, time, days, start_time, end_time, interval_minutes, days_of_week 
-                FROM schedule 
-                WHERE user_id = ? AND group_id IS NULL AND is_active = 1
-                ORDER BY time
-            ''', (user_id,))
-        return cursor.fetchall()
+def bot_loop():
+    print("=" * 60)
+    print("🤖 SMM Пилот Бот запущен!")
+    print("=" * 60)
+    print(f"💲 Стоимость поста: {POST_PRICE} ₽")
+    print(f"🕐 Часовой пояс: Новосибирск (UTC+7)")
+    print("=" * 60)
+    
+    last_minute = ""
+    
+    while True:
+        try:
+            now = datetime.now(NOVOSIBIRSK_TZ)
+            current_minute = now.strftime("%Y-%m-%d %H:%M")
+            
+            if current_minute != last_minute:
+                last_minute = current_minute
+                
+                with get_db() as conn:
+                    cursor = conn.cursor()
+                    cursor.execute('''
+                        SELECT DISTINCT u.id 
+                        FROM users u
+                        JOIN vk_settings v ON u.id = v.user_id
+                        WHERE u.is_active = 1 
+                        AND v.is_active = 1 
+                        AND v.is_configured = 1
+                        AND u.balance >= ?
+                    ''', (POST_PRICE,))
+                    users = cursor.fetchall()
+                
+                if users:
+                    print(f"⏰ {current_minute} (Новосибирск) - Обработка {len(users)} пользователей...")
+                    for user in users:
+                        process_user(user['id'])
+                    time.sleep(5)
+                else:
+                    if int(current_minute[-2:]) % 5 == 0:
+                        print(f"⏰ {current_minute} (Новосибирск) - Нет активных пользователей")
+            
+            time.sleep(1)
+            
+        except Exception as e:
+            print(f"⚠️ Ошибка бота: {e}")
+            time.sleep(5)
 
-def get_user_groups(user_id, group_id=None):
-    with get_db() as conn:
-        cursor = conn.cursor()
-        if group_id:
-            cursor.execute('''
-                SELECT id, vk_token, group_id, group_name, is_configured, is_active, timezone
-                FROM vk_settings 
-                WHERE user_id = ? AND id = ? AND is_configured = 1 AND is_active = 1
-            ''', (user_id, group_id))
-            return cursor.fetchone()
-        else:
-            cursor.execute('''
-                SELECT id, vk_token, group_id, group_name, is_configured, is_active, timezone
-                FROM vk_settings 
-                WHERE user_id = ? AND is_configured = 1 AND is_active = 1
-            ''', (user_id,))
-            return cursor.fetchall()
+_bot_started = False
 
-def get_user_timezone(user_id):
-    with get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute('SELECT timezone FROM users WHERE id = ?', (user_id,))
-        user = cursor.fetchone()
-        if user and user['timezone']:
-            return user['timezone']
-        return 'Asia/Novosibirsk'
-
-def get_group_timezone(group_id):
-    with get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute('SELECT timezone FROM vk_settings WHERE id = ?', (group_id,))
-        group = cursor.fetchone()
-        if group and group['timezone']:
-            return group['timezone']
-        return 'Asia/Novosibirsk'
-
-def get_vk_settings(user_id):
-    with get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute('''
-            SELECT vk_token, group_id, is_configured, is_active, timezone
-            FROM vk_settings 
-            WHERE user_id = ? AND is_active = 1
-            LIMIT 1
-        ''', (user_id,))
-        return cursor.fetchone()
-
-def deduct_post_cost(user_id):
-    with get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute('SELECT balance FROM users WHERE id = ?', (user_id,))
-        row = cursor.fetchone()
-        if row and row['balance'] >= 0.50:
-            cursor.execute('UPDATE users SET balance = balance - 0.50 WHERE id = ?', (user_id,))
-            conn.commit()
-            return True
-        return False
+def start_bot():
+    global _bot_started
+    if not _bot_started:
+        _bot_started = True
+        print("🔄 Запуск бота в фоновом потоке...")
+        bot_thread = threading.Thread(target=bot_loop, daemon=True)
+        bot_thread.start()
+        print("✅ Бот запущен в фоновом режиме")
