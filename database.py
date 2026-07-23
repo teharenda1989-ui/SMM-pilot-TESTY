@@ -21,7 +21,7 @@ def init_db():
         with get_db() as conn:
             cursor = conn.cursor()
             
-            # Пользователи (добавлено поле timezone)
+            # Пользователи
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS users (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -45,7 +45,7 @@ def init_db():
                 except:
                     pass
             
-            # Настройки ВК (несколько групп) — добавляем timezone для группы
+            # Настройки ВК
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS vk_settings (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -67,7 +67,7 @@ def init_db():
             except:
                 pass
             
-            # Темы — добавляем group_id
+            # Темы
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS topics (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -87,7 +87,7 @@ def init_db():
             except:
                 pass
             
-            # Расписание — добавляем group_id
+            # Расписание
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS schedule (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -110,7 +110,6 @@ def init_db():
             except:
                 pass
             
-            # Добавляем новые колонки для schedule (если их нет)
             for col in ['start_time', 'end_time', 'interval_minutes', 'days_of_week']:
                 try:
                     cursor.execute(f"ALTER TABLE schedule ADD COLUMN {col} TEXT")
@@ -191,7 +190,7 @@ def get_user_topics(user_id, group_id=None, is_morning=False):
         if group_id:
             cursor.execute('''
                 SELECT topic FROM topics 
-                WHERE user_id = ? AND group_id = ? AND is_morning = ? AND is_active = 1
+                WHERE user_id = ? AND (group_id = ? OR group_id IS NULL) AND is_morning = ? AND is_active = 1
             ''', (user_id, group_id, 1 if is_morning else 0))
         else:
             cursor.execute('''
@@ -207,18 +206,19 @@ def get_user_schedule(user_id, group_id=None):
             cursor.execute('''
                 SELECT id, time, days, start_time, end_time, interval_minutes, days_of_week 
                 FROM schedule 
-                WHERE user_id = ? AND group_id = ? AND is_active = 1
+                WHERE user_id = ? AND (group_id = ? OR group_id IS NULL) AND is_active = 1
+                ORDER BY time
             ''', (user_id, group_id))
         else:
             cursor.execute('''
                 SELECT id, time, days, start_time, end_time, interval_minutes, days_of_week 
                 FROM schedule 
                 WHERE user_id = ? AND group_id IS NULL AND is_active = 1
+                ORDER BY time
             ''', (user_id,))
         return cursor.fetchall()
 
 def get_user_groups(user_id, group_id=None):
-    """Получить все группы пользователя или конкретную"""
     with get_db() as conn:
         cursor = conn.cursor()
         if group_id:
@@ -237,7 +237,6 @@ def get_user_groups(user_id, group_id=None):
             return cursor.fetchall()
 
 def get_user_timezone(user_id):
-    """Получить часовой пояс пользователя"""
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute('SELECT timezone FROM users WHERE id = ?', (user_id,))
@@ -247,7 +246,6 @@ def get_user_timezone(user_id):
         return 'Asia/Novosibirsk'
 
 def get_group_timezone(group_id):
-    """Получить часовой пояс группы"""
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute('SELECT timezone FROM vk_settings WHERE id = ?', (group_id,))
@@ -257,7 +255,6 @@ def get_group_timezone(group_id):
         return 'Asia/Novosibirsk'
 
 def get_vk_settings(user_id):
-    """Получить первую группу (для совместимости)"""
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute('''
