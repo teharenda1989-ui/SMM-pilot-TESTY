@@ -1,0 +1,16 @@
+# robots.txt для SMM Автопилот (bloggen.ru)
+
+User-agent: *
+Allow: /
+Disallow: /admin/
+Disallow: /balance/
+Disallow: /logout/
+Disallow: /settings/
+Disallow: /dashboard/
+Disallow: /topics/
+Disallow: /schedule/
+Disallow: /groups/
+Disallow: /history/
+Disallow: /timezone/
+
+Sitemap: https://bloggen.ru/sitemap.xml
