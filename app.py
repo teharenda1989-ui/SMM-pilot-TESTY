@@ -74,17 +74,19 @@ def detect_timezone(ip_address=None):
 def health():
     return {"status": "ok", "message": "SMM Пилот работает"}, 200
 
-# ==================== SEO: ROBOTS.TXT И SITEMAP.XML ====================
+# ==================== SEO: ROBOTS.TXT, SITEMAP.XML И ВЕРИФИКАЦИЯ ====================
 
 @app.route('/robots.txt')
 def robots():
-    """Отдает robots.txt для поисковых систем"""
     return app.send_static_file('robots.txt')
 
 @app.route('/sitemap.xml')
 def sitemap():
-    """Отдает sitemap.xml для поисковых систем"""
     return app.send_static_file('sitemap.xml')
+
+@app.route('/yandex_10383af458a1c8ab.html')
+def yandex_verification():
+    return 'Verification: 10383af458a1c8ab', 200, {'Content-Type': 'text/html'}
 
 # ==================== ОСНОВНЫЕ РОУТЫ ====================
 
