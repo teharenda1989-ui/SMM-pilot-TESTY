@@ -5,6 +5,9 @@ import os
 import sys
 import requests
 import pytz
+import random
+import smtplib
+from email.mime.text import MIMEText
 
 from config import Config
 from database import init_db, get_db
@@ -762,6 +765,60 @@ def timezone_settings():
                          current_timezone=current_timezone,
                          timezones=timezones,
                          current_time=current_time)
+
+# ==================== ВОССТАНОВЛЕНИЕ ПАРОЛЯ ====================
+
+# Хранилище кодов (временное, в реальном проекте — Redis или БД)
+reset_codes = {}
+
+@app.route('/api/reset-password', methods=['POST'])
+def reset_password():
+    data = request.json
+    email = data.get('email')
+    
+    if not email:
+        return jsonify({'success': False, 'message': 'Email не указан'}), 400
+    
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute('SELECT id FROM users WHERE email = ?', (email,))
+        user = cursor.fetchone()
+        if not user:
+            return jsonify({'success': False, 'message': 'Пользователь не найден'}), 404
+    
+    # Генерируем 6-значный код
+    code = str(random.randint(100000, 999999))
+    reset_codes[email] = code
+    
+    # Отправка email (заглушка — в консоль)
+    try:
+        print(f"🔑 Код для {email}: {code}")
+        return jsonify({'success': True, 'message': 'Код отправлен на email'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': 'Ошибка отправки'}), 500
+
+@app.route('/api/reset-password/confirm', methods=['POST'])
+def reset_password_confirm():
+    data = request.json
+    email = data.get('email')
+    code = data.get('code')
+    password = data.get('password')
+    
+    if not email or not code or not password:
+        return jsonify({'success': False, 'message': 'Заполните все поля'}), 400
+    
+    if reset_codes.get(email) != code:
+        return jsonify({'success': False, 'message': 'Неверный код'}), 400
+    
+    password_hash = generate_password_hash(password)
+    
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute('UPDATE users SET password_hash = ? WHERE email = ?', (password_hash, email))
+        conn.commit()
+    
+    del reset_codes[email]
+    return jsonify({'success': True, 'message': 'Пароль успешно изменён'})
 
 # ==================== ЗАПУСК ====================
 
