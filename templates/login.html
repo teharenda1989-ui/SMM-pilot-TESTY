@@ -7,7 +7,7 @@
     <div class="card">
         <h2 style="text-align: center; margin-bottom: 24px;">🔐 Вход в систему</h2>
         
-        <form method="POST">
+        <form method="POST" action="{{ url_for('login') }}">
             <div class="form-group">
                 <label class="form-label">Email</label>
                 <input type="email" name="email" class="form-control" placeholder="example@mail.ru" required>
@@ -21,9 +21,109 @@
             <button type="submit" class="btn btn-primary" style="width: 100%;">Войти</button>
         </form>
         
+        <!-- ===== КНОПКА ВОССТАНОВЛЕНИЯ ПАРОЛЯ ===== -->
+        <div style="text-align: center; margin-top: 12px;">
+            <a class="forgot-link" onclick="showResetForm()">🔑 Забыли пароль?</a>
+        </div>
+        
+        <div id="reset-form-container" style="display: none; margin-top: 16px; padding: 16px; background: var(--bg-tertiary); border-radius: 8px;">
+            <h3 style="color: var(--text-primary); font-size: 16px; margin-bottom: 8px;">🔐 Восстановление пароля</h3>
+            <p style="color: var(--text-secondary); font-size: 13px;">Введите ваш email, и мы отправим код для сброса пароля.</p>
+            <div class="form-group">
+                <label class="form-label">Email</label>
+                <input type="email" id="reset-email" class="form-control" placeholder="example@mail.ru">
+            </div>
+            <button class="btn btn-primary" onclick="sendResetCode()" style="width: 100%;">Отправить код</button>
+            <div id="reset-status" style="margin-top: 12px; font-size: 14px;"></div>
+        </div>
+        
+        <div id="reset-code-form" style="display: none; margin-top: 16px; padding: 16px; background: var(--bg-tertiary); border-radius: 8px;">
+            <h3 style="color: var(--text-primary); font-size: 16px; margin-bottom: 8px;">🔐 Введите код</h3>
+            <p style="color: var(--text-secondary); font-size: 13px;">Код отправлен на ваш email.</p>
+            <div class="form-group">
+                <label class="form-label">Код подтверждения</label>
+                <input type="text" id="reset-code" class="form-control" placeholder="123456">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Новый пароль</label>
+                <input type="password" id="reset-password" class="form-control" placeholder="Минимум 6 символов">
+            </div>
+            <button class="btn btn-primary" onclick="confirmReset()" style="width: 100%;">Сбросить пароль</button>
+        </div>
+        
         <div style="text-align: center; margin-top: 16px; color: var(--text-secondary);">
             Нет аккаунта? <a href="{{ url_for('register') }}" style="color: var(--accent);">Зарегистрироваться</a>
         </div>
     </div>
 </div>
+
+<script>
+    // ===== ВОССТАНОВЛЕНИЕ ПАРОЛЯ =====
+    let resetEmail = '';
+
+    function showResetForm() {
+        document.getElementById('reset-form-container').style.display = 'block';
+        document.getElementById('reset-status').innerHTML = '';
+        document.getElementById('reset-code-form').style.display = 'none';
+    }
+
+    function sendResetCode() {
+        const email = document.getElementById('reset-email').value;
+        if (!email) {
+            document.getElementById('reset-status').innerHTML = '<span style="color: var(--danger);">❌ Введите email</span>';
+            return;
+        }
+        resetEmail = email;
+        document.getElementById('reset-status').innerHTML = '<span style="color: var(--warning);">⏳ Отправка кода...</span>';
+
+        fetch('/api/reset-password', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: email })
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                document.getElementById('reset-status').innerHTML = '<span style="color: var(--success);">✅ Код отправлен на ваш email</span>';
+                document.getElementById('reset-code-form').style.display = 'block';
+            } else {
+                document.getElementById('reset-status').innerHTML = '<span style="color: var(--danger);">❌ ' + data.message + '</span>';
+            }
+        })
+        .catch(() => {
+            document.getElementById('reset-status').innerHTML = '<span style="color: var(--danger);">❌ Ошибка соединения</span>';
+        });
+    }
+
+    function confirmReset() {
+        const code = document.getElementById('reset-code').value;
+        const password = document.getElementById('reset-password').value;
+        if (!code || !password) {
+            alert('Заполните все поля');
+            return;
+        }
+        if (password.length < 6) {
+            alert('Пароль должен быть минимум 6 символов');
+            return;
+        }
+
+        fetch('/api/reset-password/confirm', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: resetEmail, code: code, password: password })
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                alert('✅ Пароль успешно изменён! Войдите с новым паролем.');
+                window.location.href = '/login';
+            } else {
+                alert('❌ ' + data.message);
+            }
+        })
+        .catch(() => {
+            alert('❌ Ошибка соединения');
+        });
+    }
+</script>
 {% endblock %}
