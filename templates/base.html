@@ -6,6 +6,134 @@
     <title>{% block title %}SMM Пилот{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚀</text></svg>">
+    <style>
+        /* ===== МОДАЛЬНЫЕ ОКНА ===== */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.7);
+            z-index: 9999;
+            justify-content: center;
+            align-items: center;
+            backdrop-filter: blur(4px);
+        }
+        .modal-overlay.active {
+            display: flex;
+        }
+        .modal {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 32px;
+            max-width: 700px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            position: relative;
+            animation: fadeInUp 0.3s ease;
+            box-shadow: 0 24px 48px rgba(0,0,0,0.5);
+        }
+        .modal-close {
+            position: absolute;
+            top: 12px;
+            right: 16px;
+            font-size: 28px;
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .modal-close:hover {
+            color: var(--text-primary);
+            transform: rotate(90deg);
+        }
+        .modal h2 {
+            color: var(--text-primary);
+            margin-bottom: 16px;
+            font-size: 22px;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 12px;
+        }
+        .modal p, .modal li {
+            color: var(--text-secondary);
+            line-height: 1.7;
+            font-size: 14px;
+        }
+        .modal a {
+            color: var(--accent);
+        }
+        .modal ul {
+            padding-left: 20px;
+        }
+        .modal .highlight {
+            color: var(--text-primary);
+            font-weight: 500;
+        }
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        /* ===== ПОДВАЛ ===== */
+        .site-footer {
+            border-top: 1px solid var(--border-color);
+            padding: 32px 0 20px;
+            margin-top: 40px;
+            text-align: center;
+            color: var(--text-secondary);
+            font-size: 13px;
+        }
+        .footer-links {
+            display: flex;
+            justify-content: center;
+            gap: 24px;
+            flex-wrap: wrap;
+            margin: 12px 0 16px;
+        }
+        .footer-links a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            cursor: pointer;
+            transition: 0.2s;
+            font-size: 14px;
+        }
+        .footer-links a:hover {
+            color: var(--accent);
+        }
+        .footer-rekvizity {
+            font-size: 12px;
+            color: var(--text-muted);
+            line-height: 1.6;
+            max-width: 700px;
+            margin: 0 auto;
+        }
+        .footer-ip {
+            font-weight: 500;
+            color: var(--text-secondary);
+        }
+        /* ===== КНОПКА ВОССТАНОВЛЕНИЯ ===== */
+        .forgot-link {
+            color: var(--text-secondary);
+            font-size: 13px;
+            cursor: pointer;
+            transition: 0.2s;
+            text-decoration: underline dotted;
+        }
+        .forgot-link:hover {
+            color: var(--accent);
+        }
+        .reset-form {
+            margin-top: 16px;
+            padding: 16px;
+            background: var(--bg-tertiary);
+            border-radius: 8px;
+            display: none;
+        }
+        .reset-form.active {
+            display: block;
+        }
+    </style>
 </head>
 <body>
     <nav class="navbar">
@@ -43,6 +171,219 @@
         {% block content %}{% endblock %}
     </div>
 
-    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <!-- ===== ПОДВАЛ ===== -->
+    <footer class="site-footer">
+        <div class="footer-links">
+            <a onclick="openModal('policy')">📄 Политика конфиденциальности</a>
+            <a onclick="openModal('offer')">📋 Договор-оферта</a>
+            <a onclick="openModal('rekvizity')">💰 Реквизиты</a>
+        </div>
+        <div class="footer-ip">
+            ИП Бинюков Михаил Валерьевич · ИНН 540135247481 · ОГРНИП 324547600023618
+        </div>
+        <div style="margin-top: 8px; font-size: 12px; color: var(--text-muted);">
+            © 2026 SMM Пилот. Все права защищены.
+        </div>
+    </footer>
+
+    <!-- ===== МОДАЛЬНЫЕ ОКНА ===== -->
+
+    <!-- Политика конфиденциальности -->
+    <div class="modal-overlay" id="modal-policy">
+        <div class="modal">
+            <button class="modal-close" onclick="closeModal('policy')">&times;</button>
+            <h2>📄 Политика конфиденциальности</h2>
+            <p><strong>1. Общие положения</strong><br>
+            Настоящая Политика конфиденциальности регулирует порядок обработки и защиты персональных данных пользователей сервиса «SMM Пилот» (далее — Сервис).</p>
+            <p><strong>2. Какие данные мы собираем</strong><br>
+            • Email-адрес<br>
+            • Имя (при заполнении профиля)<br>
+            • IP-адрес и данные о местоположении (для определения часового пояса)<br>
+            • Данные о действиях в Сервисе (публикации, настройки)</p>
+            <p><strong>3. Как мы используем данные</strong><br>
+            • Для предоставления доступа к Сервису<br>
+            • Для настройки расписания и публикаций<br>
+            • Для улучшения работы и аналитики</p>
+            <p><strong>4. Передача данных третьим лицам</strong><br>
+            Мы не передаём ваши данные третьим лицам, кроме случаев, предусмотренных законодательством РФ.</p>
+            <p><strong>5. Хранение и защита</strong><br>
+            Данные хранятся на защищённых серверах. Мы используем шифрование и современные методы защиты.</p>
+            <p><strong>6. Ваши права</strong><br>
+            Вы можете запросить удаление или изменение своих данных, написав нам по контактам на сайте.</p>
+            <p><em>Последнее обновление: 30.07.2026</em></p>
+        </div>
+    </div>
+
+    <!-- Договор-оферта -->
+    <div class="modal-overlay" id="modal-offer">
+        <div class="modal">
+            <button class="modal-close" onclick="closeModal('offer')">&times;</button>
+            <h2>📋 Договор-оферта</h2>
+            <p><strong>1. Предмет договора</strong><br>
+            Исполнитель (ИП Бинюков М.В.) обязуется предоставить Пользователю доступ к Сервису «SMM Пилот» для автоматической публикации постов в ВКонтакте.</p>
+            <p><strong>2. Порядок оказания услуг</strong><br>
+            • Услуги предоставляются на условиях «как есть»<br>
+            • Публикация постов происходит по расписанию, настроенному Пользователем<br>
+            • Исполнитель не гарантирует точное время публикации из-за технических особенностей API</p>
+            <p><strong>3. Стоимость и порядок оплаты</strong><br>
+            • Стоимость одного поста — {{ "%.2f"|format(post_price) }} ₽<br>
+            • Оплата производится путём пополнения баланса в личном кабинете<br>
+            • Средства списываются автоматически после успешной публикации</p>
+            <p><strong>4. Ответственность сторон</strong><br>
+            • Исполнитель не несёт ответственности за содержание публикуемых постов<br>
+            • Пользователь несёт полную ответственность за использование Сервиса в рамках законодательства РФ</p>
+            <p><strong>5. Срок действия</strong><br>
+            Договор вступает в силу с момента регистрации Пользователя и действует бессрочно.</p>
+            <p><em>Последнее обновление: 30.07.2026</em></p>
+        </div>
+    </div>
+
+    <!-- Реквизиты -->
+    <div class="modal-overlay" id="modal-rekvizity">
+        <div class="modal">
+            <button class="modal-close" onclick="closeModal('rekvizity')">&times;</button>
+            <h2>💰 Реквизиты для оплаты</h2>
+            <p><span class="highlight">Название организации</span><br>
+            ИНДИВИДУАЛЬНЫЙ ПРЕДПРИНИМАТЕЛЬ БИНЮКОВ МИХАИЛ ВАЛЕРЬЕВИЧ</p>
+            <p><span class="highlight">Юридический адрес</span><br>
+            630530, РОССИЯ, НОВОСИБИРСКАЯ ОБЛ, НОВОСИБИРСКИЙ Р-Н, МКР ГАРМОНИЯ (СЕЛО КАМЕНКА), УЛ 6-Я, Д 19</p>
+            <p><span class="highlight">ИНН</span> 540135247481</p>
+            <p><span class="highlight">ОГРНИП</span> 324547600023618</p>
+            <p><span class="highlight">Расчётный счёт</span> 40802810100005958542</p>
+            <p><span class="highlight">Банк</span> АО «ТБанк»<br>
+            ИНН банка: 7710140679<br>
+            БИК банка: 044525974<br>
+            Корреспондентский счёт: 30101810145250000974</p>
+            <p><span class="highlight">Юридический адрес банка</span><br>
+            127287, г. Москва, ул. Хуторская 2-я, д. 38А, стр. 26</p>
+        </div>
+    </div>
+
+    <!-- ===== ВОССТАНОВЛЕНИЕ ПАРОЛЯ (форма входа) ===== -->
+    <div style="display: none;" id="reset-form-container">
+        <div class="reset-form active">
+            <h3>🔐 Восстановление пароля</h3>
+            <p style="color: var(--text-secondary);">Введите ваш email, и мы отправим код для сброса пароля.</p>
+            <div class="form-group">
+                <label class="form-label">Email</label>
+                <input type="email" id="reset-email" class="form-control" placeholder="example@mail.ru">
+            </div>
+            <button class="btn btn-primary" onclick="sendResetCode()">Отправить код</button>
+            <div id="reset-status" style="margin-top: 12px;"></div>
+        </div>
+        <div class="reset-form" id="reset-code-form">
+            <h3>🔐 Введите код</h3>
+            <p style="color: var(--text-secondary);">Код отправлен на ваш email.</p>
+            <div class="form-group">
+                <label class="form-label">Код подтверждения</label>
+                <input type="text" id="reset-code" class="form-control" placeholder="123456">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Новый пароль</label>
+                <input type="password" id="reset-password" class="form-control" placeholder="Минимум 6 символов">
+            </div>
+            <button class="btn btn-primary" onclick="confirmReset()">Сбросить пароль</button>
+        </div>
+    </div>
+
+    <script>
+        // ===== МОДАЛЬНЫЕ ОКНА =====
+        function openModal(id) {
+            document.getElementById('modal-' + id).classList.add('active');
+            document.body.style.overflow = 'hidden';
+        }
+        function closeModal(id) {
+            document.getElementById('modal-' + id).classList.remove('active');
+            document.body.style.overflow = '';
+        }
+        // Закрытие по клику вне окна
+        document.querySelectorAll('.modal-overlay').forEach(el => {
+            el.addEventListener('click', function(e) {
+                if (e.target === this) {
+                    this.classList.remove('active');
+                    document.body.style.overflow = '';
+                }
+            });
+        });
+
+        // ===== ВОССТАНОВЛЕНИЕ ПАРОЛЯ =====
+        let resetEmail = '';
+
+        function showResetForm() {
+            document.getElementById('reset-form-container').style.display = 'block';
+            document.getElementById('reset-status').innerHTML = '';
+        }
+
+        function sendResetCode() {
+            const email = document.getElementById('reset-email').value;
+            if (!email) {
+                document.getElementById('reset-status').innerHTML = '<span style="color: var(--danger);">Введите email</span>';
+                return;
+            }
+            resetEmail = email;
+            document.getElementById('reset-status').innerHTML = '<span style="color: var(--warning);">⏳ Отправка кода...</span>';
+
+            fetch('/api/reset-password', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: email })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    document.getElementById('reset-status').innerHTML = '<span style="color: var(--success);">✅ Код отправлен на ваш email</span>';
+                    document.getElementById('reset-code-form').style.display = 'block';
+                    // Сохраняем email в сессии
+                } else {
+                    document.getElementById('reset-status').innerHTML = '<span style="color: var(--danger);">❌ ' + data.message + '</span>';
+                }
+            })
+            .catch(() => {
+                document.getElementById('reset-status').innerHTML = '<span style="color: var(--danger);">❌ Ошибка соединения</span>';
+            });
+        }
+
+        function confirmReset() {
+            const code = document.getElementById('reset-code').value;
+            const password = document.getElementById('reset-password').value;
+            if (!code || !password) {
+                alert('Заполните все поля');
+                return;
+            }
+            if (password.length < 6) {
+                alert('Пароль должен быть минимум 6 символов');
+                return;
+            }
+
+            fetch('/api/reset-password/confirm', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: resetEmail, code: code, password: password })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    alert('✅ Пароль успешно изменён! Войдите с новым паролем.');
+                    window.location.href = '/login';
+                } else {
+                    alert('❌ ' + data.message);
+                }
+            })
+            .catch(() => {
+                alert('❌ Ошибка соединения');
+            });
+        }
+
+        // Показываем кнопку восстановления на странице входа, если она там есть
+        document.addEventListener('DOMContentLoaded', function() {
+            const loginForm = document.querySelector('form[action="/login"]');
+            if (loginForm) {
+                const forgotLink = document.createElement('div');
+                forgotLink.style.marginTop = '12px';
+                forgotLink.innerHTML = '<a class="forgot-link" onclick="showResetForm()">🔑 Забыли пароль?</a>';
+                loginForm.appendChild(forgotLink);
+            }
+        });
+    </script>
 </body>
 </html>
