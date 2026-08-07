@@ -7,3 +7,36 @@ instance/
 *.log
 .DS_Store
 Thumbs.db
+
+# ===== БАЗА ДАННЫХ (НЕ ЗАГРУЖАТЬ НА GITHUB) =====
+*.db
+*.db.backup
+*.db-journal
+*.sqlite
+*.sqlite3
+*.db-shm
+*.db-wal
+
+# ===== ЛОГИ =====
+bot.log
+gunicorn.log
+app.log
+*.log
+
+# ===== ВРЕМЕННЫЕ ФАЙЛЫ =====
+temp_*.txt
+temp_*.jpeg
+temp_*.png
+nohup.out
+
+# ===== РЕЗЕРВНЫЕ КОПИИ =====
+*.bak
+*.backup
+*.old
+
+# ===== СИСТЕМНЫЕ ФАЙЛЫ =====
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
