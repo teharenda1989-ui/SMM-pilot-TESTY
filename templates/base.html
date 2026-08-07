@@ -333,7 +333,6 @@
                 if (data.success) {
                     document.getElementById('reset-status').innerHTML = '<span style="color: var(--success);">✅ Код отправлен на ваш email</span>';
                     document.getElementById('reset-code-form').style.display = 'block';
-                    // Сохраняем email в сессии
                 } else {
                     document.getElementById('reset-status').innerHTML = '<span style="color: var(--danger);">❌ ' + data.message + '</span>';
                 }
@@ -374,7 +373,7 @@
             });
         }
 
-        // Показываем кнопку восстановления на странице входа, если она там есть
+        // Показываем кнопку восстановления на странице входа
         document.addEventListener('DOMContentLoaded', function() {
             const loginForm = document.querySelector('form[action="/login"]');
             if (loginForm) {
