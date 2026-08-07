@@ -26,6 +26,12 @@ init_db()
 
 # === БОТ БОЛЬШЕ НЕ ЗАПУСКАЕТСЯ ЗДЕСЬ ===
 
+# ==================== КОНТЕКСТНЫЙ ПРОЦЕССОР ДЛЯ ВСЕХ ШАБЛОНОВ ====================
+
+@app.context_processor
+def inject_post_price():
+    return {'post_price': Config.POST_PRICE}
+
 # ==================== ДЕКОРАТОРЫ ====================
 
 def login_required(f):
@@ -96,8 +102,7 @@ def yandex_verification():
 @app.route('/')
 def index():
     return render_template('index.html', 
-                         logged_in=('user_id' in session),
-                         post_price=Config.POST_PRICE)
+                         logged_in=('user_id' in session))
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
@@ -264,8 +269,7 @@ def dashboard():
                          total_topics=total_topics,
                          total_schedule=total_schedule,
                          today_posts=today_posts,
-                         recent_posts=recent_posts,
-                         post_price=Config.POST_PRICE)
+                         recent_posts=recent_posts)
 
 # ==================== ГРУППЫ VK ====================
 
@@ -672,8 +676,7 @@ def balance():
     
     return render_template('balance.html', 
                          user=user, 
-                         payments=payments,
-                         post_price=Config.POST_PRICE)
+                         payments=payments)
 
 # ==================== АДМИНКА ====================
 
