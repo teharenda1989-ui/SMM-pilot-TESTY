@@ -633,7 +633,7 @@ def clear_history():
     flash('История очищена', 'info')
     return redirect(url_for('history'))
 
-# ==================== БАЛАНС ====================
+# ==================== БАЛАНС (ИСПРАВЛЕННЫЙ) ====================
 
 @app.route('/balance', methods=['GET', 'POST'])
 @login_required
@@ -653,7 +653,7 @@ def balance():
                               (amount, session['user_id']))
                 conn.commit()
                 
-                session['balance'] += amount
+                session['balance'] = session.get('balance', 0) + amount
                 
                 cursor.execute('''
                     INSERT INTO payments (user_id, amount, status)
@@ -666,17 +666,25 @@ def balance():
                 
             except ValueError:
                 flash('Введите корректную сумму', 'danger')
+                return redirect(url_for('balance'))
         
+        # GET — показываем баланс
         cursor.execute('SELECT balance FROM users WHERE id = ?', (session['user_id'],))
-        user = cursor.fetchone()
+        row = cursor.fetchone()
+        user = {'balance': row['balance'] if row else 0}
         
-        cursor.execute('SELECT * FROM payments WHERE user_id = ? ORDER BY created_at DESC LIMIT 20', 
-                      (session['user_id'],))
+        cursor.execute('''
+            SELECT * FROM payments 
+            WHERE user_id = ? 
+            ORDER BY created_at DESC 
+            LIMIT 20
+        ''', (session['user_id'],))
         payments = cursor.fetchall()
     
     return render_template('balance.html', 
                          user=user, 
-                         payments=payments)
+                         payments=payments,
+                         post_price=Config.POST_PRICE)
 
 # ==================== АДМИНКА ====================
 
